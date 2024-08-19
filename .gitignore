@@ -1,0 +1,9 @@
+# created by virtualenv automatically
+.venv
+epub_extracted
+epubs
+
+knownWords*
+/target/
+/node_modules/
+/src/main/frontend/generated/
