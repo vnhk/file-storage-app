@@ -10,6 +10,7 @@ import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -71,6 +72,9 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         Metadata item = event.getItem();
 
+        H4 descriptionLabel = new H4("Description");
+        Text description = new Text(item.getDescription());
+
         Button prepareExportButton = new Button("Prepare file to download");
         prepareExportButton.addClickListener(buttonClickEvent -> {
             StreamResource resource = prepareDownloadResource(item.getFilename());
@@ -84,7 +88,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         Button deleteButton = new Button("Delete (Not Working Yet)");
 
-        dialogLayout.add(headerLayout, prepareExportButton, deleteButton);
+        dialogLayout.add(headerLayout, descriptionLabel, description, prepareExportButton, deleteButton);
         dialog.add(dialogLayout);
 
         dialog.open();
