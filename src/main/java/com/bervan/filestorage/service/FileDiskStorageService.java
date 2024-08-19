@@ -20,12 +20,12 @@ public class FileDiskStorageService {
     private String FOLDER;
     private String BACKUP_FILE;
 
-    public String store(MultipartFile file, Long documentId) {
-        String fileName = getFileName(file.getOriginalFilename(), documentId);
+    public String store(MultipartFile file) {
+        String fileName = getFileName(file.getOriginalFilename());
         try {
-            String destination = getDestination(fileName, documentId);
+            String destination = getDestination(fileName);
             File fileTmp = new File(destination);
-            File directory = new File(FOLDER + File.separator + documentId + File.separator);
+            File directory = new File(FOLDER + File.separator);
             directory.mkdirs();
             file.transferTo(fileTmp);
         } catch (IOException e) {
@@ -35,46 +35,44 @@ public class FileDiskStorageService {
     }
 
 
-    public Optional<Path> getFile(Long documentId, String filename) {
-        File file = new File(getDestination(filename, documentId));
-
+    public Optional<Path> getFile(String filename) {
+        File file = new File(getDestination(filename));
         Path path = Paths.get(file.getAbsolutePath());
-
         return Optional.of(path);
     }
 
-    private String getDestination(String filename, Long documentId) {
-        return FOLDER + File.separator + documentId + File.separator + filename;
+    private String getDestination(String filename) {
+        return FOLDER + File.separator + filename;
     }
 
-    private String getFileName(String fileName, Long documentId) {
+    private String getFileName(String fileName) {
         String extension = FilenameUtils.getExtension(fileName);
         String tempFileName = fileName;
-        boolean fileExist = isFileWithTheName(fileName, documentId);
+        boolean fileExist = isFileWithTheName(fileName);
         int i = 1;
         while (fileExist) {
             tempFileName = fileName.substring(0, fileName.indexOf(extension) - 1) + "(" + i++ + ")." + extension;
-            fileExist = isFileWithTheName(tempFileName, documentId);
+            fileExist = isFileWithTheName(tempFileName);
         }
 
         return tempFileName;
     }
 
-    private boolean isFileWithTheName(String fileName, Long documentId) {
-        return new File(getDestination(fileName, documentId)).exists();
+    private boolean isFileWithTheName(String fileName) {
+        return new File(getDestination(fileName)).exists();
     }
 
-    public void delete(Long documentId, String filename) {
-        String destination = getDestination(filename, documentId);
+    public void delete(String filename) {
+        String destination = getDestination(filename);
         File file = new File(destination);
         if (!file.delete()) {
             throw new FileDeleteException("File cannot be deleted!");
         }
     }
 
-    public void deleteAll(Long documentId) {
+    public void deleteAll() {
         try {
-            String destination = getDestination("", documentId);
+            String destination = getDestination("");
             File file = new File(destination);
             FileUtils.deleteDirectory(file);
         } catch (IOException e) {

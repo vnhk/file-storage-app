@@ -1,5 +1,6 @@
 package com.bervan.filestorage.service;
 
+import com.bervan.common.service.BaseService;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-public class FileServiceManager {
+public class FileServiceManager implements BaseService<Metadata> {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
 
@@ -22,27 +23,24 @@ public class FileServiceManager {
         this.fileDiskStorageService = fileDiskStorageService;
     }
 
-    public UploadResponse save(MultipartFile file, Long documentId) {
+    public UploadResponse save(MultipartFile file, String description) {
         UploadResponse uploadResponse = new UploadResponse();
         uploadResponse.setFilename(file.getOriginalFilename());
-        String filename = fileDiskStorageService.store(file, documentId);
+        String filename = fileDiskStorageService.store(file);
         LocalDateTime createDate = LocalDateTime.now();
         uploadResponse.setCreateDate(createDate);
 
-        Metadata stored = fileDBStorageService.store(createDate, documentId, filename);
+        Metadata stored = fileDBStorageService.store(createDate, filename, description);
 
-        uploadResponse.setMetadataId(stored.getId());
+        uploadResponse.setMetadata(stored);
 
         return uploadResponse;
     }
 
-    public List<Metadata> getFiles(Long documentId) {
-        return fileDBStorageService.getFiles(documentId);
-    }
 
-    public Path getFile(Long documentId, String filename) {
+    public Path getFile(String filename) {
         try {
-            Optional<Path> file = fileDiskStorageService.getFile(documentId, filename);
+            Optional<Path> file = fileDiskStorageService.getFile(filename);
             if (file.isEmpty()) {
                 throw new FileDownloadException("Cannot find file " + filename);
             } else {
@@ -53,17 +51,32 @@ public class FileServiceManager {
         }
     }
 
-    public void delete(Long documentId, String filename) {
-        fileDBStorageService.delete(documentId, filename);
-        fileDiskStorageService.delete(documentId, filename);
+    public void delete(String filename) {
+        fileDBStorageService.delete(filename);
+        fileDiskStorageService.delete(filename);
     }
 
-    public void deleteAll(Long documentId) {
-        fileDiskStorageService.deleteAll(documentId);
-        fileDBStorageService.deleteAll(documentId);
+    public void deleteAll() {
+        fileDiskStorageService.deleteAll();
+        fileDBStorageService.deleteAll();
     }
 
     public Path doBackup() throws IOException, InterruptedException {
         return fileDiskStorageService.doBackup();
+    }
+
+    @Override
+    public void save(List<Metadata> data) {
+        throw new RuntimeException("Use store method.");
+    }
+
+    @Override
+    public void save(Metadata data) {
+        throw new RuntimeException("Use store method.");
+    }
+
+    @Override
+    public List<Metadata> load() {
+        return fileDBStorageService.load();
     }
 }

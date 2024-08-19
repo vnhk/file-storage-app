@@ -15,28 +15,28 @@ public class FileDBStorageService {
         this.fileEntityRepository = fileEntityRepository;
     }
 
-    public Metadata store(LocalDateTime createDate, Long id, String originalFilename) {
+    public Metadata store(LocalDateTime createDate, String originalFilename, String description) {
         Metadata fileEntity = new Metadata();
         fileEntity.setCreateDate(createDate);
         fileEntity.setFilename(originalFilename);
-        fileEntity.setDocumentId(id);
         fileEntity.setUserName("tmpUser");
         fileEntity.setDeleted(false);
+        fileEntity.setDescription(description);
 
         return fileEntityRepository.save(fileEntity);
     }
 
-    public List<Metadata> getFiles(Long documentId) {
-        return fileEntityRepository.findAllByDocumentId(documentId);
-    }
-
-    public void delete(Long documentId, String filename) {
+    public void delete(String filename) {
         List<Metadata> allByDocumentIdAndFilename =
-                fileEntityRepository.findAllByDocumentIdAndFilename(documentId, filename);
+                fileEntityRepository.findAllByFilename(filename);
         fileEntityRepository.deleteAll(allByDocumentIdAndFilename);
     }
 
-    public void deleteAll(Long documentId) {
-        fileEntityRepository.deleteAll(getFiles(documentId));
+    public void deleteAll() {
+        fileEntityRepository.deleteAll(load());
+    }
+
+    public List<Metadata> load() {
+        return fileEntityRepository.findAll();
     }
 }

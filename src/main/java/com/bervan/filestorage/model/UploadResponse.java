@@ -1,16 +1,15 @@
 package com.bervan.filestorage.model;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 public class UploadResponse {
     private String filename;
-    private UUID metadataId;
+    private Metadata metadata;
     private LocalDateTime createDate;
 
-    public UploadResponse(String filename, UUID metadataId, LocalDateTime createDate) {
+    public UploadResponse(String filename, Metadata metadata, LocalDateTime createDate) {
         this.filename = filename;
-        this.metadataId = metadataId;
+        this.metadata = metadata;
         this.createDate = createDate;
     }
 
@@ -26,12 +25,12 @@ public class UploadResponse {
         this.filename = filename;
     }
 
-    public UUID getMetadataId() {
-        return metadataId;
+    public Metadata getMetadata() {
+        return metadata;
     }
 
-    public void setMetadataId(UUID metadataId) {
-        this.metadataId = metadataId;
+    public void setMetadata(Metadata metadata) {
+        this.metadata = metadata;
     }
 
     public LocalDateTime getCreateDate() {
