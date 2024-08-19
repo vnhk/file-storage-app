@@ -11,9 +11,9 @@
     </parent>
 
     <groupId>com.bervan</groupId>
-    <artifactId>english-stats-app</artifactId>
+    <artifactId>file-storage-app</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>english-stats-app</name>
+    <name>file-storage-app</name>
     <packaging>jar</packaging>
 
     <properties>
