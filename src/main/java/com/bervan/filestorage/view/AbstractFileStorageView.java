@@ -74,6 +74,8 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         H4 descriptionLabel = new H4("Description");
         Text description = new Text(item.getDescription());
+        H4 filenameLabel = new H4("Filename");
+        Text filename = new Text(item.getFilename());
 
         Button prepareExportButton = new Button("Prepare file to download");
         prepareExportButton.addClickListener(buttonClickEvent -> {
@@ -88,7 +90,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         Button deleteButton = new Button("Delete (Not Working Yet)");
 
-        dialogLayout.add(headerLayout, descriptionLabel, description, prepareExportButton, deleteButton);
+        dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, prepareExportButton, deleteButton);
         dialog.add(dialogLayout);
 
         dialog.open();
