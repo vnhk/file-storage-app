@@ -17,8 +17,8 @@
     <packaging>jar</packaging>
 
     <properties>
-        <java.version>16</java.version>
-        <vaadin.version>23.5.3</vaadin.version>
+        <java.version>22</java.version>
+        <vaadin.version>24.4.8</vaadin.version>
     </properties>
 
     <repositories>
