@@ -2,6 +2,7 @@ package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.FileDeleteException;
 import com.bervan.filestorage.model.FileUploadException;
+import com.bervan.filestorage.model.Metadata;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,9 +11,19 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class FileDiskStorageService {
@@ -20,12 +31,20 @@ public class FileDiskStorageService {
     private String FOLDER;
     private String BACKUP_FILE;
 
-    public String store(MultipartFile file) {
+    public String store(MultipartFile file, String path) {
+        path = path.replaceAll(FOLDER, "");
+
+        if (!path.isBlank()) {
+            if (!path.startsWith(File.separator)) {
+                path = File.separator + path;
+            }
+        }
+
         String fileName = getFileName(file.getOriginalFilename());
         try {
             String destination = getDestination(fileName);
             File fileTmp = new File(destination);
-            File directory = new File(FOLDER + File.separator);
+            File directory = new File(FOLDER + path + File.separator);
             directory.mkdirs();
             file.transferTo(fileTmp);
         } catch (IOException e) {
@@ -34,10 +53,52 @@ public class FileDiskStorageService {
         return fileName;
     }
 
+    public List<Metadata> getAllFilesInFolder() {
+        List<Metadata> fileInfos = new ArrayList<>();
+        try {
+            scanDirectory(new File(FOLDER), fileInfos);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return fileInfos;
+    }
+
+    private void scanDirectory(File fileParent, List<Metadata> fileInfos) throws IOException {
+        try (Stream<Path> paths = Files.walk(Paths.get(fileParent.getAbsolutePath()))) {
+            Set<Path> collect = paths.filter(path -> !path.toAbsolutePath()
+                            .equals(fileParent.toPath().toAbsolutePath()))
+                    .collect(Collectors.toSet());
+            for (Path path : collect) {
+                File file = path.toFile();
+                BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
+
+                FileTime creationTime = attr.creationTime();
+                LocalDateTime creationDateTime = LocalDateTime.ofInstant(creationTime.toInstant(), ZoneId.systemDefault());
+
+                if (file.isDirectory()) {
+                    fileInfos.add(new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file), file.getName(), null, creationDateTime, true));
+                    scanDirectory(file, fileInfos);
+                } else {
+                    fileInfos.add(new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file), file.getName(), FilenameUtils.getExtension(file.getName()), creationDateTime, false));
+                }
+            }
+        }
+    }
+
+    private String getAbsolutePathThatHaveToBeSavedInMetadata(File file) {
+        String absolutePath = file.getAbsolutePath();
+        absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
+        if (absolutePath.startsWith(File.separator)) {
+            absolutePath = absolutePath.replace(File.separator, "");
+        }
+        return absolutePath;
+    }
+
 
     public Optional<Path> getFile(String filename) {
         File file = new File(getDestination(filename));
-        Path path = Paths.get(file.getAbsolutePath());
+        Path path = Paths.get(getAbsolutePathThatHaveToBeSavedInMetadata(file));
         return Optional.of(path);
     }
 
@@ -88,7 +149,7 @@ public class FileDiskStorageService {
 
         File file = new File(BACKUP_FILE);
 
-        return Paths.get(file.getAbsolutePath());
+        return Paths.get(getAbsolutePathThatHaveToBeSavedInMetadata(file));
     }
 
     private void deleteOldBackup(String[] env) throws IOException, InterruptedException {

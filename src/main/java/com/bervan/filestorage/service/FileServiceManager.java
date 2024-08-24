@@ -4,6 +4,7 @@ import com.bervan.common.service.BaseService;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -12,6 +13,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class FileServiceManager implements BaseService<Metadata> {
@@ -23,14 +25,14 @@ public class FileServiceManager implements BaseService<Metadata> {
         this.fileDiskStorageService = fileDiskStorageService;
     }
 
-    public UploadResponse save(MultipartFile file, String description) {
+    public UploadResponse save(MultipartFile file, String description, String path) {
         UploadResponse uploadResponse = new UploadResponse();
         uploadResponse.setFilename(file.getOriginalFilename());
-        String filename = fileDiskStorageService.store(file);
+        String filename = fileDiskStorageService.store(file, path);
         LocalDateTime createDate = LocalDateTime.now();
         uploadResponse.setCreateDate(createDate);
 
-        Metadata stored = fileDBStorageService.store(createDate, filename, description);
+        Metadata stored = fileDBStorageService.store(createDate, path, filename, description, FilenameUtils.getExtension(filename), false);
 
         uploadResponse.setMetadata(stored);
 
@@ -76,7 +78,11 @@ public class FileServiceManager implements BaseService<Metadata> {
     }
 
     @Override
-    public List<Metadata> load() {
+    public Set<Metadata> load() {
         return fileDBStorageService.load();
+    }
+
+    public Set<Metadata> loadByPath(String path) {
+        return fileDBStorageService.loadByPath(path);
     }
 }

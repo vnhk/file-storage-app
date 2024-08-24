@@ -2,40 +2,74 @@ package com.bervan.filestorage.model;
 
 import com.bervan.common.model.PersistableTableData;
 import com.bervan.history.model.AbstractBaseEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import org.checkerframework.common.aliasing.qual.Unique;
+import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@Table(
+        name = "Metadata",
+        uniqueConstraints =
+        @UniqueConstraint(columnNames = {"path", "filename"})
+)
 public class Metadata implements AbstractBaseEntity<UUID>, PersistableTableData {
     @Id
     @GeneratedValue
     private UUID id;
-    @Unique
     private String filename;
+    private String path;
+    private boolean isDirectory;
+    private String extension;
     private LocalDateTime createDate;
     private String userName;
     private String description;
-    private boolean deleted;
     private LocalDateTime modificationDate;
+
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public boolean isDirectory() {
+        return isDirectory;
+    }
+
+    public void setDirectory(boolean directory) {
+        isDirectory = directory;
+    }
+
+    public String getExtension() {
+        return extension;
+    }
+
+    public void setExtension(String extension) {
+        this.extension = extension;
+    }
 
     public Metadata() {
 
     }
 
-    public Metadata(UUID id, String filename, LocalDateTime createDate, String userName, String description, boolean deleted, LocalDateTime modificationDate) {
-        this.id = id;
+    public Metadata(String path, String filename, String extension, LocalDateTime createDate, boolean isDirectory) {
+        this.path = path;
         this.filename = filename;
+        this.extension = extension;
         this.createDate = createDate;
-        this.userName = userName;
-        this.description = description;
-        this.deleted = deleted;
-        this.modificationDate = modificationDate;
+        this.isDirectory = isDirectory;
     }
+
+    public Metadata(UUID id, String path, String filename, String extension, boolean isDirectory) {
+        this.id = id;
+        this.path = path;
+        this.filename = filename;
+        this.extension = extension;
+        this.isDirectory = isDirectory;
+    }
+
 
     public String getFilename() {
         return filename;
@@ -59,14 +93,6 @@ public class Metadata implements AbstractBaseEntity<UUID>, PersistableTableData 
 
     public void setUserName(String userName) {
         this.userName = userName;
-    }
-
-    public boolean isDeleted() {
-        return deleted;
-    }
-
-    public void setDeleted(boolean deleted) {
-        this.deleted = deleted;
     }
 
     @Override
