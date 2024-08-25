@@ -1,6 +1,7 @@
 package com.bervan.filestorage.view;
 
 import com.bervan.common.AbstractTableView;
+import com.bervan.common.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.service.FileServiceManager;
@@ -38,14 +39,16 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
+    private final BervanLogger logger;
     private String path = "";
     private H4 pathInfoComponent = new H4();
 
-    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
+    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger logger) {
         super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage");
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
+        this.logger = logger;
         render();
     }
 
@@ -323,7 +326,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                     }
                 });
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.logError("Error uploading file: " + e.getMessage(), e);
                 Notification.show("Error uploading file: " + e.getMessage());
             }
         });
