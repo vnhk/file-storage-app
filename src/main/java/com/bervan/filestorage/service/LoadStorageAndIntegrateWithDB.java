@@ -18,7 +18,6 @@ public class LoadStorageAndIntegrateWithDB {
         this.fileDiskStorageService = fileDiskStorageService;
     }
 
-    @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void synchronizeStorageWithDB() throws FileNotFoundException {
         List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder();
