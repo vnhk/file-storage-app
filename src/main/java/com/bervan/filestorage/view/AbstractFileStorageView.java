@@ -187,6 +187,16 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     }
 
     @Override
+    protected void buildOnColumnClickDialogContent(Dialog dialog, VerticalLayout dialogLayout, HorizontalLayout headerLayout, String clickedColumn, Metadata item) {
+        throw new RuntimeException("Not valid for this view");
+    }
+
+    @Override
+    protected void buildNewItemDialogContent(Dialog dialog, VerticalLayout dialogLayout, HorizontalLayout headerLayout) {
+        throw new RuntimeException("Not valid for this view");
+    }
+
+    @Override
     protected void doOnColumnClick(ItemClickEvent<Metadata> event) {
         Metadata item = event.getItem();
         if (item.isDirectory()) {
@@ -260,7 +270,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     }
 
     @Override
-    protected void openAddDialog() {
+    protected void newItemButtonClick() {
         Dialog dialog = new Dialog();
         dialog.setWidth("80vw");
 

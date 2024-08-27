@@ -73,7 +73,7 @@ public class FileServiceManager implements BaseService<Metadata> {
     }
 
     @Override
-    public void save(Metadata data) {
+    public Metadata save(Metadata data) {
         throw new RuntimeException("Use store method.");
     }
 
