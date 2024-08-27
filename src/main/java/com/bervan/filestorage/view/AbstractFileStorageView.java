@@ -1,7 +1,7 @@
 package com.bervan.filestorage.view;
 
 import com.bervan.common.AbstractTableView;
-import com.bervan.common.model.BervanLogger;
+import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.service.FileServiceManager;
@@ -326,7 +326,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                     }
                 });
             } catch (Exception e) {
-                logger.logError("Error uploading file: " + e.getMessage(), e);
+                logger.error("Error uploading file: " + e.getMessage(), e);
                 Notification.show("Error uploading file: " + e.getMessage());
             }
         });
