@@ -58,6 +58,8 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         contentLayout.remove(addButton);
 
         Button synchronizeDBWithStorageFilesButton = new Button("Synchronize");
+        synchronizeDBWithStorageFilesButton.addClassName("option-button");
+
         synchronizeDBWithStorageFilesButton.addClickListener(buttonClickEvent -> {
             try {
                 loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
@@ -68,6 +70,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
             }
         });
         addButton.setText("Upload file");
+        addButton.addClassName("option-button");
 
         HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton);
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
@@ -239,17 +242,22 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         Text filename = new Text(item.getFilename());
 
         Button prepareExportButton = new Button("Prepare file to download");
+        prepareExportButton.addClassName("option-button");
+
         prepareExportButton.addClickListener(buttonClickEvent -> {
             StreamResource resource = prepareDownloadResource(item.getFilename());
             Anchor downloadLink = new Anchor(resource, "");
             downloadLink.getElement().setAttribute("download", true);
             Button downloadButton = new Button("Download");
+            downloadButton.addClassName("option-button");
+
             downloadLink.add(downloadButton);
             dialogLayout.add(downloadLink);
             dialogLayout.remove(prepareExportButton);
         });
 
         Button deleteButton = new Button("Delete (Not Working Yet)");
+        deleteButton.addClassName("option-button");
 
         dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, prepareExportButton, deleteButton);
         dialog.add(dialogLayout);
@@ -342,6 +350,8 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         });
 
         Button save = new Button("Save and upload");
+        save.addClassName("option-button");
+
         save.addClickListener(buttonClickEvent -> {
             if (holder.size() > 0) {
                 UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), "");
