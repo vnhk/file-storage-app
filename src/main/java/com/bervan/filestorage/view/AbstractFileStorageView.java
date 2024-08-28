@@ -15,6 +15,7 @@ import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -74,7 +75,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton);
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
         contentLayout.addComponentAtIndex(0, buttons);
-        contentLayout.addComponentAtIndex(0, new Text("Max File Size: " + maxFileSize));
+        contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
     }
 
     @Override
@@ -236,9 +237,9 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         Metadata item = event.getItem();
 
         H4 descriptionLabel = new H4("Description");
-        Text description = new Text(item.getDescription());
+        H5 description = new H5(item.getDescription());
         H4 filenameLabel = new H4("Filename");
-        Text filename = new Text(item.getFilename());
+        H5 filename = new H5(item.getFilename());
 
         Button prepareExportButton = new Button("Prepare file to download");
         prepareExportButton.addClassName("option-button");
