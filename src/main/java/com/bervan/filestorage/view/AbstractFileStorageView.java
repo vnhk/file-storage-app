@@ -61,6 +61,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         synchronizeDBWithStorageFilesButton.addClickListener(buttonClickEvent -> {
             try {
                 loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+                data.removeAll(data);
                 data.addAll(loadData());
                 grid.getDataProvider().refreshAll();
             } catch (FileNotFoundException e) {
