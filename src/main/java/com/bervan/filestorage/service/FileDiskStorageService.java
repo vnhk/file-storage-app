@@ -96,10 +96,9 @@ public class FileDiskStorageService {
     }
 
 
-    public Optional<Path> getFile(String filename) {
-        File file = new File(getDestination(filename));
-        Path path = Paths.get(getAbsolutePathThatHaveToBeSavedInMetadata(file));
-        return Optional.of(path);
+    public Path getFile(String path) {
+        File file = new File(getDestination(path));
+        return file.toPath();
     }
 
     private String getDestination(String filename) {

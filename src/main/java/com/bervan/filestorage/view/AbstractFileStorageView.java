@@ -13,7 +13,6 @@ import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.grid.ItemClickEvent;
-import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Span;
@@ -24,15 +23,16 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.upload.Upload;
-import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
+import com.vaadin.flow.component.upload.receivers.FileBuffer;
 import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.QueryParameters;
-import com.vaadin.flow.server.StreamResource;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.*;
-import java.nio.file.Path;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 
 public abstract class AbstractFileStorageView extends AbstractTableView<Metadata> {
@@ -241,40 +241,21 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         H4 filenameLabel = new H4("Filename");
         H5 filename = new H5(item.getFilename());
 
-        Button prepareExportButton = new Button("Prepare file to download");
-        prepareExportButton.addClassName("option-button");
-
-        prepareExportButton.addClickListener(buttonClickEvent -> {
-            StreamResource resource = prepareDownloadResource(item.getFilename());
-            Anchor downloadLink = new Anchor(resource, "");
-            downloadLink.getElement().setAttribute("download", true);
-            Button downloadButton = new Button("Download");
-            downloadButton.addClassName("option-button");
-
-            downloadLink.add(downloadButton);
-            dialogLayout.add(downloadLink);
-            dialogLayout.remove(prepareExportButton);
+        Button downloadLink = new Button("Download");
+        downloadLink.addClassName("option-button");
+        downloadLink.addClickListener(buttonClickEvent -> {
+            UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", ROUTE_NAME + "/download?uuid=" + item.getId());
         });
+
+        dialogLayout.add(downloadLink);
 
         Button deleteButton = new Button("Delete (Not Working Yet)");
         deleteButton.addClassName("option-button");
 
-        dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, prepareExportButton, deleteButton);
+        dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
         dialog.add(dialogLayout);
 
         dialog.open();
-    }
-
-    private StreamResource prepareDownloadResource(String fileName) {
-        Path filePath = fileServiceManager.getFile(fileName);
-
-        return new StreamResource(fileName, () -> {
-            try {
-                return new FileInputStream(filePath.toFile());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
     @Override
@@ -289,7 +270,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         TextArea description = new TextArea("Description");
         description.setWidth("100%");
 
-        MemoryBuffer buffer = new MemoryBuffer();
+        FileBuffer buffer = new FileBuffer();
         Upload upload = new Upload(buffer);
 //        upload.setAcceptedFileTypes("application/pdf", "image/jpeg", "image/png");
         List<MultipartFile> holder = new ArrayList<>();

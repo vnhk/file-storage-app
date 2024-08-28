@@ -6,9 +6,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class FileDBStorageService {
@@ -54,6 +54,10 @@ public class FileDBStorageService {
 
     public Set<Metadata> loadByPath(String path) {
         return fileEntityRepository.findByPath(path);
+    }
+
+    public Optional<Metadata> loadById(UUID id) {
+        return fileEntityRepository.findById(id);
     }
 
     public Optional<Metadata> loadByPathAndFilename(String path, String filename) {

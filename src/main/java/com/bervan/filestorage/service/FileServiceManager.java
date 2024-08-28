@@ -8,12 +8,13 @@ import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class FileServiceManager implements BaseService<Metadata> {
@@ -40,16 +41,12 @@ public class FileServiceManager implements BaseService<Metadata> {
     }
 
 
-    public Path getFile(String filename) {
+    public Path getFile(UUID uuid) {
         try {
-            Optional<Path> file = fileDiskStorageService.getFile(filename);
-            if (file.isEmpty()) {
-                throw new FileDownloadException("Cannot find file " + filename);
-            } else {
-                return file.get();
-            }
+            Metadata metadata = fileDBStorageService.loadById(uuid).get();
+            return fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
         } catch (Exception e) {
-            throw new FileDownloadException("Cannot get file " + filename);
+            throw new FileDownloadException("Cannot get file: " + uuid);
         }
     }
 
