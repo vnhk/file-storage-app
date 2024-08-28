@@ -39,16 +39,14 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
-    private final BervanLogger logger;
     private String path = "";
     private H4 pathInfoComponent = new H4();
 
-    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger logger) {
-        super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage");
+    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log) {
+        super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage", log);
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
-        this.logger = logger;
         render();
     }
 
@@ -344,7 +342,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                     }
                 });
             } catch (Exception e) {
-                logger.error("Error uploading file: " + e.getMessage(), e);
+                log.error("Error uploading file: " + e.getMessage(), e);
                 Notification.show("Error uploading file: " + e.getMessage());
             }
         });
