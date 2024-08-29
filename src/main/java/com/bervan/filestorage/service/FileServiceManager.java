@@ -79,6 +79,11 @@ public class FileServiceManager implements BaseService<Metadata> {
         return fileDBStorageService.load();
     }
 
+    @Override
+    public void delete(Metadata item) {
+        throw new RuntimeException("Not implemented correctly.");
+    }
+
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
     }
