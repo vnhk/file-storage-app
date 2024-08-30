@@ -44,7 +44,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     private H4 pathInfoComponent = new H4();
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log) {
-        super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage", log);
+        super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage", log, Metadata.class);
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
