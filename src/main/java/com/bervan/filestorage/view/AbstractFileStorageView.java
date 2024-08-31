@@ -35,6 +35,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 public abstract class AbstractFileStorageView extends AbstractTableView<Metadata> {
@@ -262,7 +264,9 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
             if (item.isDirectory()) {
                 String newPath = "";
                 if (item.getFilename().equals("../")) {
-                    newPath = item.getPath();
+                    Path actual = Paths.get(path);
+                    Path parentPath = actual.getParent();
+                    newPath = parentPath == null ? "" : parentPath.toString();
                 } else if (item.getPath().isBlank()) {
                     newPath = item.getFilename();
                 } else {
