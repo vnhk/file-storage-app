@@ -304,6 +304,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         });
 
         Button deleteButton = new Button(item.isDirectory() ? "Delete entire directory" : "Delete file");
+        deleteButton.addClassName("option-button");
         deleteButton.addClassName("option-button-warning");
 
         deleteButton.addClickListener(click -> {
