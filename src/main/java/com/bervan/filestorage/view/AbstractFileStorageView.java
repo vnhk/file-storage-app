@@ -327,7 +327,6 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         FileBuffer buffer = new FileBuffer();
         Upload upload = new Upload(buffer);
-//        upload.setAcceptedFileTypes("application/pdf", "image/jpeg", "image/png");
         List<MultipartFile> holder = new ArrayList<>();
         upload.addSucceededListener(event -> {
             if (holder.size() > 0) {
