@@ -175,9 +175,13 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
             int orderVal = 0;
 
             if ("../".equals(filename1)) {
-                orderVal = -1;
+                orderVal = -100;
             } else if ("../".equals(filename2)) {
-                orderVal = 1;
+                orderVal = 100;
+            } else if (metadata1.isDirectory()) {
+                orderVal = -90;
+            } else if (metadata2.isDirectory()) {
+                orderVal = 90;
             }
 
             if (orderVal != 0) {
