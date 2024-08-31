@@ -55,16 +55,6 @@ public class FileServiceManager implements BaseService<Metadata> {
         }
     }
 
-    public void delete(String filename) {
-        fileDBStorageService.delete(filename);
-        fileDiskStorageService.delete(filename);
-    }
-
-    public void deleteAll() {
-        fileDiskStorageService.deleteAll();
-        fileDBStorageService.deleteAll();
-    }
-
     public Path doBackup() throws IOException, InterruptedException {
         return fileDiskStorageService.doBackup();
     }
@@ -84,9 +74,11 @@ public class FileServiceManager implements BaseService<Metadata> {
         return fileDBStorageService.load();
     }
 
+    @Transactional
     @Override
     public void delete(Metadata item) {
-        throw new RuntimeException("Not implemented correctly.");
+        fileDiskStorageService.delete(item.getPath(), item.getFilename());
+        fileDBStorageService.delete(item);
     }
 
     public Set<Metadata> loadByPath(String path) {

@@ -1,9 +1,8 @@
 package com.bervan.filestorage.service;
 
-import com.bervan.filestorage.model.FileDeleteException;
+import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.FileUploadException;
 import com.bervan.filestorage.model.Metadata;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -11,9 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
@@ -29,6 +26,11 @@ public class FileDiskStorageService {
     @Value("${file.service.storage.folder}")
     private String FOLDER;
     private String BACKUP_FILE;
+    private final BervanLogger log;
+
+    public FileDiskStorageService(BervanLogger log) {
+        this.log = log;
+    }
 
     public String store(MultipartFile file, String path) {
         path = path.replaceAll(FOLDER, "");
@@ -121,23 +123,34 @@ public class FileDiskStorageService {
         return new File(getDestination(fileName)).exists();
     }
 
-    public void delete(String filename) {
-        String destination = getDestination(filename);
-        File file = new File(destination);
-        if (!file.delete()) {
-            throw new FileDeleteException("File cannot be deleted!");
+    public void delete(String path, String filename) {
+        path = FOLDER + File.separator + path.replaceAll(FOLDER, "");
+        Path targetPath = Paths.get(path, filename);
+        try {
+            if (Files.exists(targetPath)) {
+                Files.walkFileTree(targetPath, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        Files.delete(file);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                        Files.delete(dir);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } else {
+                log.error("File or directory does not exists!");
+                throw new RuntimeException("File or directory does not exists!");
+            }
+        } catch (IOException e) {
+            log.warn("Cannot delete! " + e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 
-    public void deleteAll() {
-        try {
-            String destination = getDestination("");
-            File file = new File(destination);
-            FileUtils.deleteDirectory(file);
-        } catch (IOException e) {
-            throw new FileDeleteException("Files cannot be deleted!");
-        }
-    }
 
     public Path doBackup() throws IOException, InterruptedException {
         BACKUP_FILE = FOLDER + "backup.zip";

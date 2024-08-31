@@ -4,6 +4,7 @@ import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.repository.MetadataRepository;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
@@ -36,16 +37,13 @@ public class FileDBStorageService {
         return fileEntityRepository.save(metadata);
     }
 
-    public void delete(String filename) {
-        throw new RuntimeException("Not implemented correctly.");
-
-//        List<Metadata> allByDocumentIdAndFilename =
-//                fileEntityRepository.findAllByFilename(filename);
-//        fileEntityRepository.deleteAll(allByDocumentIdAndFilename);
-    }
-
-    public void deleteAll() {
-        fileEntityRepository.deleteAll(load());
+    public void delete(Metadata metadata) {
+        if(metadata.isDirectory()) {
+            for (Metadata m : loadByPath(metadata.getPath() + File.separator + metadata.getFilename())) {
+                delete(m);
+            }
+        }
+        fileEntityRepository.delete(metadata);
     }
 
     public Set<Metadata> load() {

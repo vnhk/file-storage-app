@@ -172,6 +172,13 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     @Override
     protected Grid<Metadata> getGrid() {
         Grid<Metadata> grid = new Grid<>(Metadata.class, false);
+        grid.addColumn(new ComponentRenderer<>(metadata -> {
+                    if ("../".equals(metadata.getFilename())) {
+                        return new Span();
+                    }
+                    return VaadinIcon.INFO_CIRCLE.create();
+                }))
+                .setHeader("").setKey("actions").setResizable(false).setAutoWidth(false).setWidth("1px");
 
         grid.addColumn(new ComponentRenderer<>(metadata -> {
                     HorizontalLayout layout = new HorizontalLayout();
@@ -191,25 +198,17 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                 .setKey("filename")
                 .setResizable(true)
                 .setSortable(true)
-                .setComparator(createFilenameComparator());
+                .setComparator(createFilenameComparator())
+                .setAutoWidth(true);
 
         grid.addColumn(new ComponentRenderer<>(metadata -> {
                     if (metadata.isDirectory()) {
                         return new Span();
                     }
-
-                    return formatTextComponent(String.valueOf(metadata.getDescription()));
+                    return formatTextComponent(String.valueOf(metadata.getCreateDate()).split("T")[0]);
                 }))
-                .setHeader("Description").setKey("description").setResizable(true);
-        grid.addColumn(new ComponentRenderer<>(metadata -> {
-                    if (metadata.isDirectory()) {
-                        return new Span();
-                    }
-                    return formatTextComponent(String.valueOf(metadata.getCreateDate()));
-                }))
-                .setHeader("Created").setKey("created").setResizable(true);
-
-        grid.getElement().getStyle().set("--lumo-size-m", 100 + "px");
+                .setHeader("Created").setKey("created")
+                .setAutoWidth(true).setResizable(true);
 
         grid.sort(GridSortOrder.asc(grid.getColumnByKey("filename")).build());
 
@@ -256,24 +255,26 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
     @Override
     protected void doOnColumnClick(ItemClickEvent<Metadata> event) {
-        Metadata item = event.getItem();
-        if (item.isDirectory()) {
-            String newPath = "";
-            if (item.getFilename().equals("../")) {
-                newPath = item.getPath();
-            } else if (item.getPath().isBlank()) {
-                newPath = item.getFilename();
-            } else {
-                newPath = item.getPath() + File.separator + item.getFilename();
-            }
-
-            UI.getCurrent().navigate(ROUTE_NAME, QueryParameters.of("path", newPath));
-            path = newPath;
-            data.removeAll(data);
-            data.addAll(loadData());
-            grid.getDataProvider().refreshAll();
-        } else {
+        if (event.getColumn().getKey().equals("actions") && !event.getItem().getFilename().equals("../")) {
             openDetailsDialog(event);
+        } else {
+            Metadata item = event.getItem();
+            if (item.isDirectory()) {
+                String newPath = "";
+                if (item.getFilename().equals("../")) {
+                    newPath = item.getPath();
+                } else if (item.getPath().isBlank()) {
+                    newPath = item.getFilename();
+                } else {
+                    newPath = item.getPath() + File.separator + item.getFilename();
+                }
+
+                UI.getCurrent().navigate(ROUTE_NAME, QueryParameters.of("path", newPath));
+                path = newPath;
+                data.removeAll(data);
+                data.addAll(loadData());
+                grid.getDataProvider().refreshAll();
+            }
         }
     }
 
@@ -293,7 +294,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         H4 descriptionLabel = new H4("Description");
         H5 description = new H5(item.getDescription());
-        H4 filenameLabel = new H4("Filename");
+        H4 filenameLabel = new H4(item.isDirectory() ? "Directory:" : "File:");
         H5 filename = new H5(item.getFilename());
 
         Button downloadLink = new Button("Download");
@@ -302,12 +303,22 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
             UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", ROUTE_NAME + "/download?uuid=" + item.getId());
         });
 
-        dialogLayout.add(downloadLink);
+        Button deleteButton = new Button(item.isDirectory() ? "Delete entire directory" : "Delete file");
+        deleteButton.addClassName("option-button-warning");
 
-        Button deleteButton = new Button("Delete (Not Working Yet)");
-        deleteButton.addClassName("option-button");
+        deleteButton.addClickListener(click -> {
+            fileServiceManager.delete(item);
+            removeItemFromGrid(item);
+            grid.getDataProvider().refreshAll();
+            dialog.close();
+        });
 
-        dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+        if (item.isDirectory()) {
+            dialogLayout.add(headerLayout, filenameLabel, filename, deleteButton);
+        } else {
+            dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+        }
+
         dialog.add(dialogLayout);
 
         dialog.open();
