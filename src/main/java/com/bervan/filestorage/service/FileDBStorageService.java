@@ -63,4 +63,8 @@ public class FileDBStorageService {
     public Optional<Metadata> loadByPathAndFilename(String path, String filename) {
         return fileEntityRepository.findByPathAndFilename(path, filename);
     }
+
+    public Metadata createEmptyDirectory(String path, String value) {
+        return store(LocalDateTime.now(), path, value, null, null, true);
+    }
 }

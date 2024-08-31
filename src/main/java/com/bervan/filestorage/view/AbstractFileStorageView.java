@@ -22,11 +22,13 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.FileBuffer;
 import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.QueryParameters;
+import io.micrometer.common.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -59,6 +61,55 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         Button synchronizeDBWithStorageFilesButton = new Button("Synchronize");
         synchronizeDBWithStorageFilesButton.addClassName("option-button");
 
+        Button createDirectory = new Button("New Folder");
+        createDirectory.addClassName("option-button");
+
+        createDirectory.addClickListener(buttonClickEvent -> {
+            Dialog dialog = new Dialog();
+            dialog.setWidth("80vw");
+
+            VerticalLayout dialogLayout = new VerticalLayout();
+
+            HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
+
+            TextField field = new TextField("Directory name:");
+            field.setWidth("50%");
+
+            Button createButton = new Button("Create");
+            createButton.addClassName("option-button");
+
+            createButton.addClickListener(createEvent -> {
+                String value = field.getValue();
+                if (!StringUtils.isNotBlank(value)) {
+                    Notification.show("Incorrect directory name");
+                    return;
+                }
+
+                if (value.length() > 50) {
+                    Notification.show("Incorrect directory name");
+                    return;
+                }
+
+                List<Metadata> directoriesInPath = fileServiceManager.getDirectoriesInPath(path);
+                if (directoriesInPath.stream().anyMatch(e -> e.getFilename().equals(value))) {
+                    Notification.show("Directory exists!");
+                    return;
+                }
+
+                Metadata newDirectory = fileServiceManager.createEmptyDirectory(path, value);
+
+                data.add(newDirectory);
+                grid.getDataProvider().refreshAll();
+
+                dialog.close();
+            });
+
+            dialogLayout.add(headerLayout, field, createButton);
+            dialog.add(dialogLayout);
+
+            dialog.open();
+        });
+
         synchronizeDBWithStorageFilesButton.addClickListener(buttonClickEvent -> {
             try {
                 loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
@@ -72,7 +123,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         addButton.setText("Upload file");
         addButton.addClassName("option-button");
 
-        HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton);
+        HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton, createDirectory);
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
         contentLayout.addComponentAtIndex(0, buttons);
         contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));

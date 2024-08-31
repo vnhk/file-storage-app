@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -162,5 +161,11 @@ public class FileDiskStorageService {
         String cmd = "zip -r " + BACKUP_FILE + " " + FOLDER;
         Process process = Runtime.getRuntime().exec(cmd, env);
         process.waitFor();
+    }
+
+    public void createEmptyDirectory(String path, String value) {
+        path = path.replaceAll(FOLDER, "");
+        File directory = new File(FOLDER + path + File.separator + value);
+        directory.mkdirs();
     }
 }

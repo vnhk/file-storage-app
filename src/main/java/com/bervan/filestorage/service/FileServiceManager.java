@@ -4,6 +4,7 @@ import com.bervan.common.service.BaseService;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
+import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class FileServiceManager implements BaseService<Metadata> {
@@ -40,6 +42,9 @@ public class FileServiceManager implements BaseService<Metadata> {
         return uploadResponse;
     }
 
+    public List<Metadata> getDirectoriesInPath(String path) {
+        return fileDBStorageService.loadByPath(path).stream().filter(Metadata::isDirectory).collect(Collectors.toList());
+    }
 
     public Path getFile(UUID uuid) {
         try {
@@ -86,5 +91,13 @@ public class FileServiceManager implements BaseService<Metadata> {
 
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
+    }
+
+    @Transactional
+    public Metadata createEmptyDirectory(String path, String value) {
+        Metadata metadata = fileDBStorageService.createEmptyDirectory(path, value);
+        fileDiskStorageService.createEmptyDirectory(path, value);
+
+        return metadata;
     }
 }
