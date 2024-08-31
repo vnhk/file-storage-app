@@ -335,7 +335,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         save.addClickListener(buttonClickEvent -> {
             if (holder.size() > 0) {
-                UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), "");
+                UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), path);
                 data.add(saved.getMetadata());
                 grid.getDataProvider().refreshAll();
                 Notification.show("File uploaded successfully!");
