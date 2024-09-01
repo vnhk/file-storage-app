@@ -91,7 +91,7 @@ public class FileDiskStorageService {
         String absolutePath = file.getAbsolutePath();
         absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
         if (absolutePath.startsWith(File.separator)) {
-            absolutePath = absolutePath.replace(File.separator, "");
+            absolutePath = absolutePath.substring(1, absolutePath.length() - 1);
         }
         return absolutePath;
     }
