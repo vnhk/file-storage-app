@@ -90,7 +90,7 @@ public class FileDiskStorageService {
     private String getAbsolutePathThatHaveToBeSavedInMetadata(File file) {
         String absolutePath = file.getAbsolutePath();
         absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
-        if (absolutePath.startsWith(File.separator)) {
+        if (absolutePath.startsWith(File.separator) && absolutePath.length() > 2) {
             absolutePath = absolutePath.substring(1, absolutePath.length() - 1);
         }
         return absolutePath;
