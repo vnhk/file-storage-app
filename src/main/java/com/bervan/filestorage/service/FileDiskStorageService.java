@@ -33,6 +33,8 @@ public class FileDiskStorageService {
     }
 
     public String store(MultipartFile file, String path) {
+        log.info("Saving " + file.getOriginalFilename() + " in path: " + path);
+
         path = path.replaceAll(FOLDER, "");
 
         if (!path.isBlank()) {
@@ -44,10 +46,12 @@ public class FileDiskStorageService {
         String fileName = getFileName(file.getOriginalFilename());
         try {
             String destination = getDestination(fileName);
+            log.info("Saving " + fileName + " in destination: " + destination);
             File fileTmp = new File(destination);
             File directory = new File(FOLDER + path + File.separator);
             directory.mkdirs();
             file.transferTo(fileTmp);
+            log.info("Saved " + fileName + " in destination: " + fileTmp.getAbsolutePath());
         } catch (IOException e) {
             throw new FileUploadException(e.getMessage());
         }
