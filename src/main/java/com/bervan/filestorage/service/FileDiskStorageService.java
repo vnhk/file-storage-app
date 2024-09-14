@@ -47,7 +47,7 @@ public class FileDiskStorageService {
         try {
             String destination = getDestination(fileName);
             log.info("Saving " + fileName + " in destination: " + destination);
-            File fileTmp = new File(destination);
+            File fileTmp = new File(destination + path);
             File directory = new File(FOLDER + path + File.separator);
             directory.mkdirs();
             file.transferTo(fileTmp);
