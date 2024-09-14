@@ -74,11 +74,11 @@ public class FileServiceManager implements BaseService<Metadata> {
         return fileDBStorageService.load();
     }
 
-    @Transactional
+//    @Transactional
     @Override
     public void delete(Metadata item) {
-        fileDiskStorageService.delete(item.getPath(), item.getFilename());
         fileDBStorageService.delete(item);
+        fileDiskStorageService.delete(item.getPath(), item.getFilename());
     }
 
     public Set<Metadata> loadByPath(String path) {
