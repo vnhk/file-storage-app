@@ -1,6 +1,7 @@
 package com.bervan.filestorage.service;
 
 import com.bervan.common.service.BaseService;
+import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
@@ -22,10 +23,12 @@ import java.util.stream.Collectors;
 public class FileServiceManager implements BaseService<Metadata> {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
+    private final BervanLogger log;
 
-    public FileServiceManager(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService) {
+    public FileServiceManager(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService, BervanLogger log) {
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
+        this.log = log;
     }
 
     public UploadResponse save(MultipartFile file, String description, String path) {
@@ -74,11 +77,14 @@ public class FileServiceManager implements BaseService<Metadata> {
         return fileDBStorageService.load();
     }
 
-//    @Transactional
     @Override
     public void delete(Metadata item) {
         fileDBStorageService.delete(item);
-        fileDiskStorageService.delete(item.getPath(), item.getFilename());
+        try {
+            fileDiskStorageService.delete(item.getPath(), item.getFilename());
+        } catch (Exception e) {
+            log.error("Could not delete file from storage!", e);
+        }
     }
 
     public Set<Metadata> loadByPath(String path) {
