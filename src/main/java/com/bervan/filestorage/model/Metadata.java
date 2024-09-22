@@ -116,7 +116,7 @@ public class Metadata implements AbstractBaseEntity<UUID>, PersistableTableData 
     }
 
     @Override
-    public String getName() {
+    public String getTableFilterableColumnValue() {
         return filename;
     }
 
