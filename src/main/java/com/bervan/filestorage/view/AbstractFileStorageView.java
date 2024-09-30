@@ -83,18 +83,18 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
             createButton.addClickListener(createEvent -> {
                 String value = field.getValue();
                 if (!StringUtils.isNotBlank(value)) {
-                    Notification.show("Incorrect directory name");
+                    showWarningNotification("Incorrect directory name");
                     return;
                 }
 
                 if (value.length() > 50) {
-                    Notification.show("Incorrect directory name");
+                    showWarningNotification("Incorrect directory name");
                     return;
                 }
 
                 List<Metadata> directoriesInPath = fileServiceManager.getDirectoriesInPath(path);
                 if (directoriesInPath.stream().anyMatch(e -> e.getFilename().equals(value))) {
-                    Notification.show("Directory exists!");
+                    showWarningNotification("Directory exists!");
                     return;
                 }
 
@@ -119,7 +119,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                 data.addAll(loadData());
                 grid.getDataProvider().refreshAll();
             } catch (FileNotFoundException e) {
-                Notification.show(e.getMessage());
+                showErrorNotification(e.getMessage());
             }
         });
         addButton.setText("Upload file");
@@ -396,7 +396,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                 });
             } catch (Exception e) {
                 log.error("Error uploading file: " + e.getMessage(), e);
-                Notification.show("Error uploading file: " + e.getMessage());
+                showErrorNotification("Error uploading file: " + e.getMessage());
             }
         });
 
@@ -408,10 +408,10 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
                 UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), path);
                 data.add(saved.getMetadata());
                 grid.getDataProvider().refreshAll();
-                Notification.show("File uploaded successfully!");
+                showSuccessNotification("File uploaded successfully!");
                 dialog.close();
             } else {
-                Notification.show("Please attach a file!");
+                showWarningNotification("Please attach a file!");
             }
         });
 
