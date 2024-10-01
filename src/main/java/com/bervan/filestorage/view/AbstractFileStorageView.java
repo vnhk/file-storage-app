@@ -6,6 +6,7 @@ import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB;
+import com.bervan.filestorage.view.fileviever.FileViewerView;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -18,7 +19,6 @@ import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
@@ -29,6 +29,7 @@ import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.QueryParameters;
 import io.micrometer.common.util.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -46,6 +47,8 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
     private String path = "";
     private H4 pathInfoComponent = new H4();
+    @Value("${file.service.storage.folder}")
+    private String FOLDER;
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log) {
         super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage", log, Metadata.class);
@@ -68,7 +71,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
         createDirectory.addClickListener(buttonClickEvent -> {
             Dialog dialog = new Dialog();
-            dialog.setWidth("80vw");
+            dialog.setWidth("95vw");
 
             VerticalLayout dialogLayout = new VerticalLayout();
 
@@ -284,10 +287,11 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
     private void openDetailsDialog(ItemClickEvent<Metadata> event) {
         Dialog dialog = new Dialog();
-        dialog.setWidth("80vw");
+        dialog.setWidth("95vw");
+
+        FileViewerView fileViewerView = new FileViewerView(log, event.getItem(), FOLDER);
 
         VerticalLayout dialogLayout = new VerticalLayout();
-
         HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
 
         String clickedColumn = event.getColumn().getKey();
@@ -321,7 +325,11 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
         if (item.isDirectory()) {
             dialogLayout.add(headerLayout, filenameLabel, filename, deleteButton);
         } else {
-            dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+            if (fileViewerView.isFileSupportView) {
+                dialogLayout.add(headerLayout, fileViewerView, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+            } else {
+                dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+            }
         }
 
         dialog.add(dialogLayout);
@@ -332,7 +340,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     @Override
     protected void newItemButtonClick() {
         Dialog dialog = new Dialog();
-        dialog.setWidth("80vw");
+        dialog.setWidth("95vw");
 
         VerticalLayout dialogLayout = new VerticalLayout();
 
