@@ -3,6 +3,14 @@ package com.bervan.filestorage.view.fileviever;
 import com.bervan.common.AbstractPageView;
 import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -12,10 +20,10 @@ import java.util.List;
 import java.util.Optional;
 
 public class FileViewerView extends AbstractPageView {
-    private final BervanLogger log;
     private static List<FileViewer> fileViewers = new ArrayList<>();
     public boolean isFileSupportView = false;
     private boolean fileExists = false;
+    private boolean isFileBig = false;
 
     static {
         fileViewers.add(new PDFViewer());
@@ -24,10 +32,8 @@ public class FileViewerView extends AbstractPageView {
     }
 
     public FileViewerView(BervanLogger log, Metadata metadata, String fileServicePath) {
-        this.log = log;
+        removeClassName("bervan-page");
         final String finalPath = fileServicePath + File.separator + metadata.getPath() + File.separator + metadata.getFilename();
-        log.debug("Loading file view for file: " + finalPath);
-
         try {
             Optional<FileViewer> fileViewer = fileViewers.stream().filter(e -> e.supports(finalPath))
                     .findFirst();
@@ -38,8 +44,33 @@ public class FileViewerView extends AbstractPageView {
                 fileExists = false;
             }
 
+            log.debug("Loading file view for file: " + finalPath);
+
             if (fileViewer.isPresent() && fileExists) {
-                add(fileViewer.get().buildView(finalPath));
+                FileViewer fileViewerProcessor = fileViewer.get();
+
+                isFileBig = fileViewerProcessor.isFileBig(finalPath);
+
+                if (!isFileBig) {
+                    add(fileViewerProcessor.buildView(finalPath));
+                }
+
+                Button openFileInWindowButton = new Button("Open file");
+                openFileInWindowButton.setClassName("option-button");
+                openFileInWindowButton.addClickListener(cEvent -> {
+                    Dialog filePreview = new Dialog();
+                    filePreview.setWidth("90vw");
+                    filePreview.setHeight("90vh");
+                    VerticalLayout filePreviewLayout = new VerticalLayout();
+                    HorizontalLayout filePreviewHeaderLayout = getDialogTopBarLayout(filePreview);
+
+                    filePreviewLayout.add(filePreviewHeaderLayout, fileViewerProcessor.buildView(finalPath));
+                    filePreview.add(filePreviewLayout);
+
+                    filePreview.open();
+                });
+
+                add(openFileInWindowButton);
                 isFileSupportView = true;
             } else {
                 log.debug("FileViewer not found for: " + finalPath);
@@ -49,6 +80,21 @@ public class FileViewerView extends AbstractPageView {
             log.error("Unable to load file!", e);
             showErrorNotification("Unable to load file!");
         }
+    }
+
+    public boolean isFileBig() {
+        return isFileBig;
+    }
+
+    protected HorizontalLayout getDialogTopBarLayout(Dialog dialog) {
+        Button closeButton = new Button(new Icon(VaadinIcon.CLOSE));
+        closeButton.addClassName("option-button");
+
+        closeButton.addClickListener(e -> dialog.close());
+        HorizontalLayout headerLayout = new HorizontalLayout(closeButton);
+        headerLayout.setWidthFull();
+        headerLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
+        return headerLayout;
     }
 }
 
