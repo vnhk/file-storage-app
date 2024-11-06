@@ -51,7 +51,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
     private String FOLDER;
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log) {
-        super(new FileStorageAppPageLayout(ROUTE_NAME), service, "Storage", log, Metadata.class);
+        super(new FileStorageAppPageLayout(ROUTE_NAME), service, log, Metadata.class);
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
@@ -60,7 +60,6 @@ public abstract class AbstractFileStorageView extends AbstractTableView<Metadata
 
     private void render() {
         renderCommonComponents();
-        contentLayout.remove(header);
         contentLayout.remove(addButton);
 
         Button synchronizeDBWithStorageFilesButton = new Button("Synchronize");
