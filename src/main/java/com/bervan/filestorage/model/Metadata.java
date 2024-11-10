@@ -1,8 +1,12 @@
 package com.bervan.filestorage.model;
 
 import com.bervan.common.model.PersistableTableData;
+import com.bervan.common.user.User;
 import com.bervan.history.model.AbstractBaseEntity;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.ParamDef;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -13,7 +17,8 @@ import java.util.UUID;
         uniqueConstraints =
         @UniqueConstraint(columnNames = {"path", "filename"})
 )
-public class Metadata implements AbstractBaseEntity<UUID>, PersistableTableData {
+
+public class Metadata implements AbstractBaseEntity<UUID>, PersistableTableData<UUID> {
     @Id
     @GeneratedValue
     private UUID id;
@@ -25,6 +30,19 @@ public class Metadata implements AbstractBaseEntity<UUID>, PersistableTableData 
     private String userName;
     private String description;
     private LocalDateTime modificationDate;
+
+    @ManyToOne
+    private User owner;
+
+    @Override
+    public User getOwner() {
+        return owner;
+    }
+
+    @Override
+    public void setOwner(User user) {
+        this.owner = user;
+    }
 
     public String getPath() {
         return path;

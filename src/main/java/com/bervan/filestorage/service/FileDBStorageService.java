@@ -1,7 +1,9 @@
 package com.bervan.filestorage.service;
 
+import com.bervan.common.service.AuthService;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.repository.MetadataRepository;
+import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -46,12 +48,14 @@ public class FileDBStorageService {
         fileEntityRepository.delete(metadata);
     }
 
+    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
     public Set<Metadata> load() {
         return new HashSet<>(fileEntityRepository.findAll());
     }
 
+    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
     public Set<Metadata> loadByPath(String path) {
-        return fileEntityRepository.findByPath(path);
+        return fileEntityRepository.findByPathAndOwnerId(path, AuthService.getLoggedUserId());
     }
 
     public Optional<Metadata> loadById(UUID id) {
@@ -59,7 +63,7 @@ public class FileDBStorageService {
     }
 
     public Optional<Metadata> loadByPathAndFilename(String path, String filename) {
-        return fileEntityRepository.findByPathAndFilename(path, filename);
+        return fileEntityRepository.findByPathAndFilenameAndOwnerId(path, filename, AuthService.getLoggedUserId());
     }
 
     public Metadata createEmptyDirectory(String path, String value) {

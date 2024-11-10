@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public interface MetadataRepository extends BaseRepository<Metadata, UUID> {
-    Optional<Metadata> findByPathAndFilename(String path, String filename);
+    Optional<Metadata> findByPathAndFilenameAndOwnerId(String path, String filename, UUID ownerId);
 
-    Set<Metadata> findByPath(String path);
+    Set<Metadata> findByPathAndOwnerId(String path, UUID ownerId);
 }

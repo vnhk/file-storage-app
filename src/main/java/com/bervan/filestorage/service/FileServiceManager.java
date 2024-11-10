@@ -7,6 +7,7 @@ import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
+import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,7 +21,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class FileServiceManager implements BaseService<Metadata> {
+public class FileServiceManager implements BaseService<UUID, Metadata> {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
     private final BervanLogger log;
@@ -45,6 +46,7 @@ public class FileServiceManager implements BaseService<Metadata> {
         return uploadResponse;
     }
 
+    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
     public List<Metadata> getDirectoriesInPath(String path) {
         return fileDBStorageService.loadByPath(path).stream().filter(Metadata::isDirectory).collect(Collectors.toList());
     }
@@ -73,6 +75,7 @@ public class FileServiceManager implements BaseService<Metadata> {
     }
 
     @Override
+    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
     public Set<Metadata> load() {
         return fileDBStorageService.load();
     }
@@ -87,6 +90,7 @@ public class FileServiceManager implements BaseService<Metadata> {
         }
     }
 
+    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
     }

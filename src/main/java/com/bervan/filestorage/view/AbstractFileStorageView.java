@@ -40,7 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-public abstract class AbstractFileStorageView extends AbstractTableView<Metadata> {
+public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Metadata> {
     public static final String ROUTE_NAME = "file-storage-app/files";
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;
