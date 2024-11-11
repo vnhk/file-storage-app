@@ -46,18 +46,9 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         return uploadResponse;
     }
 
-    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public List<Metadata> getDirectoriesInPath(String path) {
         return fileDBStorageService.loadByPath(path).stream().filter(Metadata::isDirectory).collect(Collectors.toList());
-    }
-
-    public Path getFile(UUID uuid) {
-        try {
-            Metadata metadata = fileDBStorageService.loadById(uuid).get();
-            return fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
-        } catch (Exception e) {
-            throw new FileDownloadException("Cannot get file: " + uuid);
-        }
     }
 
     public Path doBackup() throws IOException, InterruptedException {
@@ -75,7 +66,7 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
     }
 
     @Override
-    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> load() {
         return fileDBStorageService.load();
     }
@@ -90,7 +81,7 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         }
     }
 
-    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
     }

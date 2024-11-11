@@ -8,10 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class FileDBStorageService {
@@ -48,22 +45,25 @@ public class FileDBStorageService {
         fileEntityRepository.delete(metadata);
     }
 
-    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> load() {
         return new HashSet<>(fileEntityRepository.findAll());
     }
 
-    @PostFilter("filterObject.owner != null && filterObject.owner.getId().equals(T(com.bervan.common.service.AuthService).getLoggedUserId())")
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
-        return fileEntityRepository.findByPathAndOwnerId(path, AuthService.getLoggedUserId());
+        return fileEntityRepository.findByPathAndOwnersId(path, AuthService.getLoggedUserId());
     }
 
-    public Optional<Metadata> loadById(UUID id) {
-        return fileEntityRepository.findById(id);
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadById(UUID id) {
+        Optional<Metadata> byId = fileEntityRepository.findById(id);
+        return byId.map(Arrays::asList).orElseGet(ArrayList::new);
     }
 
-    public Optional<Metadata> loadByPathAndFilename(String path, String filename) {
-        return fileEntityRepository.findByPathAndFilenameAndOwnerId(path, filename, AuthService.getLoggedUserId());
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadByPathAndFilename(String path, String filename) {
+        return fileEntityRepository.findByPathAndFilenameAndOwnersId(path, filename, AuthService.getLoggedUserId());
     }
 
     public Metadata createEmptyDirectory(String path, String value) {
