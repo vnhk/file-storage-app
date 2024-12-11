@@ -69,4 +69,11 @@ public class FileDBStorageService {
     public Metadata createEmptyDirectory(String path, String value) {
         return store(LocalDateTime.now(), path, value, null, null, true);
     }
+
+    public Metadata update(Metadata data) {
+        if (data == null || data.getId() == null) {
+            throw new RuntimeException("Unable to update Metadata! Id is null!");
+        }
+        return fileEntityRepository.save(data);
+    }
 }

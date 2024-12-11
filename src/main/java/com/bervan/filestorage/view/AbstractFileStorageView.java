@@ -16,6 +16,7 @@ import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.H5;
+import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -46,7 +47,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
     private final String maxFileSize;
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
     private String path = "";
-    private H4 pathInfoComponent = new H4();
+    private final H4 pathInfoComponent = new H4();
     @Value("${file.service.storage.folder}")
     private String FOLDER;
 
@@ -225,24 +226,40 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
         return (metadata1, metadata2) -> {
             String filename1 = metadata1.getFilename();
             String filename2 = metadata2.getFilename();
+            SortDirection direction = grid.getSortOrder().get(0).getDirection();
 
-            int orderVal = 0;
+            boolean isParent1 = "../".equals(filename1);
+            boolean isParent2 = "../".equals(filename2);
 
-            if ("../".equals(filename1)) {
-                orderVal = -100;
-            } else if ("../".equals(filename2)) {
-                orderVal = 100;
-            } else if (metadata1.isDirectory()) {
-                orderVal = -90;
-            } else if (metadata2.isDirectory()) {
-                orderVal = 90;
+            int cmp = Integer.MAX_VALUE;
+            if (isParent1 && !isParent2) {
+                // "../" always on top
+                cmp = -1;
+            } else if (!isParent1 && isParent2) {
+                cmp = 1;
+            } else if (isParent1 && isParent2) {
+                // both "../" should not happen!
+                cmp = 0;
             }
 
-            if (orderVal != 0) {
-                return grid.getSortOrder().get(0).getDirection() == SortDirection.ASCENDING ? orderVal
-                        : -orderVal;
+            if (cmp != Integer.MAX_VALUE) {
+                return direction == SortDirection.ASCENDING ? cmp : -cmp;
             }
 
+            boolean dir1 = metadata1.isDirectory();
+            boolean dir2 = metadata2.isDirectory();
+
+            if (dir1 && !dir2) {
+                cmp = -1; // directory before file
+            } else if (!dir1 && dir2) {
+                cmp = 1;  // file after directory
+            }
+
+            if (cmp != Integer.MAX_VALUE) {
+                return direction == SortDirection.ASCENDING ? cmp : -cmp;
+            }
+
+            // If both are directories or both files, we sort based on name
             return filename1.compareToIgnoreCase(filename2);
         };
     }
@@ -300,7 +317,16 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
         Metadata item = event.getItem();
 
         H4 descriptionLabel = new H4("Description");
+        TextArea editableDescription = new TextArea();
+        if (item.getDescription() != null) {
+            editableDescription.setValue(item.getDescription());
+        }
+        editableDescription.setWidth("100%");
+        editableDescription.setVisible(false);
+
         H5 description = new H5(item.getDescription());
+        description.setVisible(true);
+
         H4 filenameLabel = new H4(item.isDirectory() ? "Directory:" : "File:");
         H5 filename = new H5(item.getFilename());
 
@@ -321,18 +347,46 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
             dialog.close();
         });
 
+        Button editButton = new Button("Edit");
+        editButton.addClassName("option-button");
+
+        Button saveButton = new Button("Save");
+        saveButton.addClassName("option-button");
+        saveButton.setVisible(false);
+
+        editButton.addClickListener(click -> {
+            description.setVisible(false);
+            editableDescription.setVisible(true);
+            editButton.setVisible(false);
+            saveButton.setVisible(true);
+        });
+
+        saveButton.addClickListener(click -> {
+            try {
+                String updatedDescription = editableDescription.getValue();
+                item.setDescription(updatedDescription);
+                fileServiceManager.updateMetadata(item);
+                description.setText(updatedDescription);
+                description.setVisible(true);
+                editableDescription.setVisible(false);
+                editButton.setVisible(true);
+                saveButton.setVisible(false);
+            } catch (Exception e) {
+                showErrorNotification("Unable to update item!");
+            }
+        });
+
         if (item.isDirectory()) {
             dialogLayout.add(headerLayout, filenameLabel, filename, deleteButton);
         } else {
             if (fileViewerView.isFileSupportView) {
-                dialogLayout.add(headerLayout, fileViewerView, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+                dialogLayout.add(headerLayout, fileViewerView, filenameLabel, filename, descriptionLabel, description, editableDescription, new Hr(), editButton, saveButton, downloadLink, new Hr(), deleteButton);
             } else {
-                dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, downloadLink, deleteButton);
+                dialogLayout.add(headerLayout, filenameLabel, filename, descriptionLabel, description, editableDescription, new Hr(), editButton, saveButton, downloadLink, new Hr(), deleteButton);
             }
         }
 
         dialog.add(dialogLayout);
-
         dialog.open();
     }
 
@@ -412,11 +466,16 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
 
         save.addClickListener(buttonClickEvent -> {
             if (holder.size() > 0) {
-                UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), path);
-                data.add(saved.getMetadata());
-                grid.getDataProvider().refreshAll();
-                showSuccessNotification("File uploaded successfully!");
-                dialog.close();
+                try {
+                    UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), path);
+                    data.add(saved.getMetadata());
+                    grid.getDataProvider().refreshAll();
+                    showSuccessNotification("File uploaded successfully!");
+                    dialog.close();
+                } catch (Exception e) {
+                    showErrorNotification("Failed to save a file!");
+                }
+
             } else {
                 showWarningNotification("Please attach a file!");
             }

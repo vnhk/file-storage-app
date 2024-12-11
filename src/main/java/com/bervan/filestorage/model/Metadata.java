@@ -2,12 +2,8 @@ package com.bervan.filestorage.model;
 
 import com.bervan.common.model.BervanBaseEntity;
 import com.bervan.common.model.PersistableTableData;
-import com.bervan.common.user.User;
-import com.bervan.history.model.AbstractBaseEntity;
 import jakarta.persistence.*;
-import org.hibernate.annotations.Filter;
-import org.hibernate.annotations.FilterDef;
-import org.hibernate.annotations.ParamDef;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -30,10 +26,9 @@ public class Metadata extends BervanBaseEntity<UUID> implements  PersistableTabl
     private String extension;
     private LocalDateTime createDate;
     private String userName;
+    @Size(max = 2000)
     private String description;
     private LocalDateTime modificationDate;
-
-
 
     public String getPath() {
         return path;

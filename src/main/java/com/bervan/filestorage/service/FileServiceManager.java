@@ -65,6 +65,10 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         throw new RuntimeException("Use store method.");
     }
 
+    public Metadata updateMetadata(Metadata data) {
+        return fileDBStorageService.update(data);
+    }
+
     @Override
     @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> load() {
