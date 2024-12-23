@@ -11,4 +11,6 @@ public interface MetadataRepository extends BaseRepository<Metadata, UUID> {
     List<Metadata> findByPathAndFilenameAndOwnersId(String path, String filename, UUID ownerId);
 
     Set<Metadata> findByPathAndOwnersId(String path, UUID ownerId);
+
+    List<Metadata> findByPathStartsWithAndOwnersId(String path, UUID loggedUserId);
 }

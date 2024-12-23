@@ -58,7 +58,12 @@ public class FileDBStorageService {
     @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public List<Metadata> loadById(UUID id) {
         Optional<Metadata> byId = fileEntityRepository.findById(id);
-        return byId.map(Arrays::asList).orElseGet(ArrayList::new);
+        if (byId.isPresent()) {
+            List<Metadata> res = new ArrayList<>();
+            res.add(byId.get());
+            return res;
+        }
+        return new ArrayList<>();
     }
 
     @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
@@ -75,5 +80,10 @@ public class FileDBStorageService {
             throw new RuntimeException("Unable to update Metadata! Id is null!");
         }
         return fileEntityRepository.save(data);
+    }
+
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadByPathStartsWith(String path) {
+        return fileEntityRepository.findByPathStartsWithAndOwnersId(path, AuthService.getLoggedUserId());
     }
 }

@@ -2,7 +2,6 @@ package com.bervan.filestorage.service;
 
 import com.bervan.common.service.BaseService;
 import com.bervan.core.model.BervanLogger;
-import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import jakarta.transaction.Transactional;
@@ -11,7 +10,6 @@ import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -96,5 +94,15 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         fileDiskStorageService.createEmptyDirectory(path, value);
 
         return metadata;
+    }
+
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadById(String videoId) {
+        return fileDBStorageService.loadById(UUID.fromString(videoId));
+    }
+
+    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadByPathStartsWith(String path) {
+        return fileDBStorageService.loadByPathStartsWith(path);
     }
 }
