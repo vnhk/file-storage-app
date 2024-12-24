@@ -2,10 +2,15 @@ package com.bervan.filestorage.model;
 
 import com.bervan.common.model.BervanBaseEntity;
 import com.bervan.common.model.PersistableTableData;
+import com.bervan.history.model.AbstractBaseHistoryEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
+import org.jsoup.select.Evaluator;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.UUID;
 
 @Entity
@@ -97,6 +102,26 @@ public class Metadata extends BervanBaseEntity<UUID> implements  PersistableTabl
 
     public void setUserName(String userName) {
         this.userName = userName;
+    }
+
+    @Override
+    public Collection<? extends AbstractBaseHistoryEntity<UUID>> getHistoryEntities() {
+        return new ArrayList<>();
+    }
+
+    @Override
+    public Field getHistoryCollectionField() {
+        return null;
+    }
+
+    @Override
+    public Class<? extends AbstractBaseHistoryEntity<UUID>> getTargetHistoryEntityClass() {
+        return null;
+    }
+
+    @Override
+    public void setHistoryEntities(Collection<? extends AbstractBaseHistoryEntity<UUID>> abstractBaseHistoryEntities) {
+
     }
 
     @Override
