@@ -4,6 +4,7 @@ import com.bervan.common.service.BaseService;
 import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
+import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.security.access.prepost.PostFilter;
@@ -81,6 +82,11 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         } catch (Exception e) {
             log.error("Could not delete file from storage!", e);
         }
+    }
+
+    @Override
+    public void saveIfValid(List<? extends ExcelIEEntity> objects) {
+        throw new RuntimeException("Not supported yet!");
     }
 
     @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
