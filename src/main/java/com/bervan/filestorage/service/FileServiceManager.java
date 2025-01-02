@@ -91,7 +91,7 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         throw new RuntimeException("Not supported yet!");
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
     }
@@ -104,13 +104,13 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
         return metadata;
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
-    public List<Metadata> loadById(String videoId) {
+//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadVideoById(String videoId) {
         return fileDBStorageService.loadById(UUID.fromString(videoId));
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
-    public List<Metadata> loadByPathStartsWith(String path) {
+//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    public List<Metadata> loadVideosByPathStartsWith(String path) {
         return fileDBStorageService.loadByPathStartsWith(path);
     }
 

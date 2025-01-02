@@ -50,12 +50,12 @@ public class FileDBStorageService {
         return new HashSet<>(fileEntityRepository.findAll());
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
-        return fileEntityRepository.findByPathAndOwnersId(path, AuthService.getLoggedUserId());
+        return fileEntityRepository.findByPath(path);
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public List<Metadata> loadById(UUID id) {
         Optional<Metadata> byId = fileEntityRepository.findById(id);
         if (byId.isPresent()) {
@@ -82,8 +82,8 @@ public class FileDBStorageService {
         return fileEntityRepository.save(data);
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public List<Metadata> loadByPathStartsWith(String path) {
-        return fileEntityRepository.findByPathStartsWithAndOwnersId(path, AuthService.getLoggedUserId());
+        return fileEntityRepository.findByPathStartsWith(path);
     }
 }
