@@ -56,7 +56,7 @@ public class FileViewerView extends AbstractPageView {
                 }
 
                 Button openFileInWindowButton = new Button("Open file");
-                openFileInWindowButton.setClassName("option-button");
+                openFileInWindowButton.addClassName("option-button");
                 openFileInWindowButton.addClickListener(cEvent -> {
                     Dialog filePreview = new Dialog();
                     filePreview.setWidth("90vw");
