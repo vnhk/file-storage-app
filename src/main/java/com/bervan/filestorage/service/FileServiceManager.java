@@ -1,10 +1,12 @@
 package com.bervan.filestorage.service;
 
+import com.bervan.common.search.SearchService;
 import com.bervan.common.service.BaseService;
 import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
+import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
@@ -22,12 +24,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class FileServiceManager implements BaseService<UUID, Metadata> {
+public class FileServiceManager extends BaseService<UUID, Metadata> {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
     private final BervanLogger log;
 
-    public FileServiceManager(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService, BervanLogger log) {
+    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, BervanLogger log, MetadataRepository repository) {
+        super(repository, searchService);
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
         this.log = log;
@@ -87,11 +90,11 @@ public class FileServiceManager implements BaseService<UUID, Metadata> {
     }
 
     @Override
-    public void saveIfValid(List<? extends ExcelIEEntity> objects) {
-        throw new RuntimeException("Not supported yet!");
+    public void saveIfValid(List<? extends ExcelIEEntity<UUID>> objects) {
+        throw new RuntimeException("Unsupported");
     }
 
-//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
+    //    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
     }
