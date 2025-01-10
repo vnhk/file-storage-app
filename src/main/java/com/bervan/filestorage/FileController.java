@@ -37,7 +37,7 @@ public class FileController {
 
         try (OutputStream out = response.getOutputStream();
              var inputStream = java.nio.file.Files.newInputStream(file)) {
-            byte[] buffer = new byte[81920];
+            byte[] buffer = new byte[819200];
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 out.write(buffer, 0, bytesRead);
