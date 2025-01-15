@@ -1,14 +1,13 @@
 package com.bervan.filestorage.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class UploadResponse {
-    private String filename;
-    private Metadata metadata;
+    private List<Metadata> metadata;
     private LocalDateTime createDate;
 
-    public UploadResponse(String filename, Metadata metadata, LocalDateTime createDate) {
-        this.filename = filename;
+    public UploadResponse(List<Metadata> metadata, LocalDateTime createDate) {
         this.metadata = metadata;
         this.createDate = createDate;
     }
@@ -17,19 +16,11 @@ public class UploadResponse {
 
     }
 
-    public String getFilename() {
-        return filename;
-    }
-
-    public void setFilename(String filename) {
-        this.filename = filename;
-    }
-
-    public Metadata getMetadata() {
+    public List<Metadata> getMetadata() {
         return metadata;
     }
 
-    public void setMetadata(Metadata metadata) {
+    public void setMetadata(List<Metadata> metadata) {
         this.metadata = metadata;
     }
 

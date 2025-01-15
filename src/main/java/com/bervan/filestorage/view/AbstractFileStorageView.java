@@ -10,6 +10,7 @@ import com.bervan.filestorage.view.fileviever.FileViewerView;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
@@ -224,6 +225,11 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
 
     private Comparator<Metadata> createFilenameComparator() {
         return (metadata1, metadata2) -> {
+            if (metadata1 == null) {
+                return -1;
+            } else if (metadata2 == null) {
+                return 1;
+            }
             String filename1 = metadata1.getFilename();
             String filename2 = metadata2.getFilename();
             SortDirection direction = grid.getSortOrder().get(0).getDirection();
@@ -464,24 +470,97 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
         Button save = new Button("Save and upload");
         save.addClassName("option-button");
 
+        Checkbox extractCheckbox = new Checkbox("Extract file");
+        extractCheckbox.setVisible(false);
+
+        upload.addSucceededListener(event -> {
+            if (holder.size() > 0) {
+                holder.remove(0);
+            }
+
+            try {
+                InputStream inputStream = buffer.getInputStream();
+                holder.add(0, new MultipartFile() {
+                    @Override
+                    public String getName() {
+                        return event.getFileName();
+                    }
+
+                    @Override
+                    public String getOriginalFilename() {
+                        return event.getFileName();
+                    }
+
+                    @Override
+                    public String getContentType() {
+                        return event.getMIMEType();
+                    }
+
+                    @Override
+                    public boolean isEmpty() {
+                        throw new RuntimeException("Not supported");
+                    }
+
+                    @Override
+                    public long getSize() {
+                        throw new RuntimeException("Not supported");
+                    }
+
+                    @Override
+                    public byte[] getBytes() throws IOException {
+                        throw new RuntimeException("Not supported");
+                    }
+
+                    @Override
+                    public InputStream getInputStream() throws IOException {
+                        return inputStream;
+                    }
+
+                    @Override
+                    public void transferTo(File dest) throws IOException, IllegalStateException {
+                        transferTo(dest.toPath());
+                    }
+                });
+
+                if (event.getFileName().endsWith(".zip")) {
+                    extractCheckbox.setVisible(true);
+                } else {
+                    extractCheckbox.setVisible(false);
+                }
+            } catch (Exception e) {
+                log.error("Error uploading file: " + e.getMessage(), e);
+                showErrorNotification("Error uploading file: " + e.getMessage());
+            }
+        });
+
         save.addClickListener(buttonClickEvent -> {
             if (holder.size() > 0) {
                 try {
-                    UploadResponse saved = fileServiceManager.save(holder.get(0), description.getValue(), path);
-                    data.add(saved.getMetadata());
+                    MultipartFile uploadedFile = holder.get(0);
+
+                    if (extractCheckbox.isVisible() && extractCheckbox.getValue() && uploadedFile.getOriginalFilename().endsWith(".zip")) {
+                        UploadResponse savedZip = fileServiceManager.saveAndExtractZip(uploadedFile, description.getValue(), path);
+                        List<Metadata> addedInCurrentPath = savedZip.getMetadata().stream().filter(e -> e.getPath().equals(path))
+                                .toList();
+                        data.addAll(addedInCurrentPath);
+                    } else {
+                        UploadResponse saved = fileServiceManager.save(uploadedFile, description.getValue(), path);
+                        data.add(saved.getMetadata().get(0));
+                    }
+
                     grid.getDataProvider().refreshAll();
                     showSuccessNotification("File uploaded successfully!");
                     dialog.close();
                 } catch (Exception e) {
-                    showErrorNotification("Failed to save a file!");
+                    log.error("Failed to save a file: ", e);
+                    showErrorNotification("Failed to save a file: " + e.getMessage());
                 }
-
             } else {
                 showWarningNotification("Please attach a file!");
             }
         });
 
-        dialogLayout.add(headerLayout, description, upload, save);
+        dialogLayout.add(headerLayout, description, upload, extractCheckbox, save);
         dialog.add(dialogLayout);
         dialog.open();
     }

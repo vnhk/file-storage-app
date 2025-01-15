@@ -10,18 +10,25 @@ import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 public class FileServiceManager extends BaseService<UUID, Metadata> {
@@ -36,16 +43,96 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         this.log = log;
     }
 
+    @Transactional
+    public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path) throws IOException {
+        if (!file.getOriginalFilename().endsWith(".zip")) {
+            throw new RuntimeException("File is not a zip!");
+        }
+
+        UploadResponse uploadResponse = new UploadResponse();
+        List<Metadata> savedFilesMetadata = new ArrayList<>();
+        Path zipFile = null;
+        try {
+            String[] pathParts = file.getOriginalFilename().split(Pattern.quote(File.separator));
+            String fileNameTmp = fileDiskStorageService.storeTmp(file, pathParts[pathParts.length - 1]);
+
+            zipFile = fileDiskStorageService.getTmpFile(fileNameTmp);
+
+            try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
+                ZipEntry zipEntry;
+                while ((zipEntry = zis.getNextEntry()) != null) {
+                    if (zipEntry.getName().startsWith("__")) {
+                        continue;
+                    }
+                    if (zipEntry.isDirectory()) {
+                        continue;
+                    }
+
+                    String extractedFilename = zipEntry.getName();
+                    String[] extractedPathParts = extractedFilename.split(Pattern.quote(File.separator));
+                    String fileName = extractedPathParts[extractedPathParts.length - 1];
+                    Path tempFilePath = Files.createTempFile("extracted_", "_" + fileName);
+
+                    Files.copy(zis, tempFilePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    MultipartFile multipartFile = new MockMultipartFile(
+                            extractedFilename,
+                            extractedFilename,
+                            Files.probeContentType(tempFilePath),
+                            Files.newInputStream(tempFilePath)
+                    );
+
+                    UploadResponse saved = save(multipartFile, description, path);
+
+                    savedFilesMetadata.addAll(saved.getMetadata());
+                    Files.delete(tempFilePath);
+                }
+                zis.closeEntry();
+            }
+        } catch (Exception e) {
+            for (Metadata filesToBeReverted : savedFilesMetadata) {
+                Files.deleteIfExists(fileDiskStorageService.getFile(filesToBeReverted.getPath() + File.separator + filesToBeReverted.getFilename()));
+            }
+            throw new RuntimeException("Error processing ZIP file", e);
+        } finally {
+            if (zipFile != null) {
+                Files.deleteIfExists(zipFile);
+            }
+        }
+
+        uploadResponse.setCreateDate(LocalDateTime.now());
+        uploadResponse.setMetadata(savedFilesMetadata);
+        return uploadResponse;
+    }
+
+    @Transactional
     public UploadResponse save(MultipartFile file, String description, String path) {
         UploadResponse uploadResponse = new UploadResponse();
-        uploadResponse.setFilename(file.getOriginalFilename());
-        String filename = fileDiskStorageService.store(file, path);
+        List<Metadata> createdMetadata = new ArrayList<>();
+
+        String[] pathParts = file.getOriginalFilename().split(Pattern.quote(File.separator));
+        List<Metadata> directoriesInPath = getDirectoriesInPath(path);
+        String newPath = path;
+        for (String pathPart : pathParts) {
+            if (pathPart.equals(pathParts[pathParts.length - 1])) {
+                break; //last is real filename
+            }
+
+            newPath += File.separator + pathPart;
+            if (directoriesInPath.stream().noneMatch(e -> e.getFilename().equals(pathPart))) {
+                Metadata emptyDirectory = createEmptyDirectory(path, pathPart);
+                createdMetadata.add(emptyDirectory);
+            }
+            path = newPath;
+        }
+
+        String filename = fileDiskStorageService.store(file, path, pathParts[pathParts.length - 1]);
         LocalDateTime createDate = LocalDateTime.now();
         uploadResponse.setCreateDate(createDate);
 
         Metadata stored = fileDBStorageService.store(createDate, path, filename, description, FilenameUtils.getExtension(filename), false);
-
-        uploadResponse.setMetadata(stored);
+        createdMetadata.add(stored);
+        uploadResponse.setMetadata(createdMetadata);
 
         return uploadResponse;
     }

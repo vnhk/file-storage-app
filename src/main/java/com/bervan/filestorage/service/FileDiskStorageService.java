@@ -25,6 +25,8 @@ import java.util.stream.Stream;
 public class FileDiskStorageService {
     @Value("${file.service.storage.folder}")
     private String FOLDER;
+    @Value("${global-tmp-dir.file-storage-relative-path}")
+    private String GLOBAL_TMP_DIR;
     private String BACKUP_FILE;
     private final BervanLogger log;
 
@@ -32,8 +34,8 @@ public class FileDiskStorageService {
         this.log = log;
     }
 
-    public String store(MultipartFile file, String path) {
-        log.info("Saving " + file.getOriginalFilename() + " in path: " + path);
+    public String store(MultipartFile file, String path, String fileName) {
+        log.info("Saving " + fileName + " in path: " + path);
 
         path = path.replaceAll(FOLDER, "");
 
@@ -43,7 +45,8 @@ public class FileDiskStorageService {
             }
         }
 
-        String fileName = getFileName(file.getOriginalFilename());
+        fileName = getFileName(path, fileName);
+
         try {
             String destination = FOLDER + path + File.separator + fileName;
             log.info("Saving " + fileName + " in destination: " + destination);
@@ -53,6 +56,26 @@ public class FileDiskStorageService {
             file.transferTo(fileTmp);
             log.info("Saved " + fileName + " in destination: " + fileTmp.getAbsolutePath());
         } catch (IOException e) {
+            log.error(e);
+            throw new FileUploadException(e.getMessage());
+        }
+        return fileName;
+    }
+
+    public String storeTmp(MultipartFile file, String fileName) {
+        log.info("Saving tmp " + fileName);
+
+        fileName = getFileName(GLOBAL_TMP_DIR, fileName);
+        try {
+            String destination = FOLDER + GLOBAL_TMP_DIR + File.separator + fileName;
+            log.info("Saving " + fileName + " in destination: " + destination);
+            File fileTmp = new File(destination);
+            File directory = new File(FOLDER + GLOBAL_TMP_DIR + File.separator);
+            directory.mkdirs();
+            file.transferTo(fileTmp);
+            log.info("Saved " + fileName + " in destination: " + fileTmp.getAbsolutePath());
+        } catch (IOException e) {
+            log.error(e);
             throw new FileUploadException(e.getMessage());
         }
         return fileName;
@@ -102,29 +125,34 @@ public class FileDiskStorageService {
 
 
     public Path getFile(String path) {
-        File file = new File(getDestination(path));
+        File file = new File(getDestination(path, ""));
         return file.toPath();
     }
 
-    private String getDestination(String filename) {
-        return FOLDER + File.separator + filename;
+    public Path getTmpFile(String path) {
+        File file = new File(getDestination(path, GLOBAL_TMP_DIR));
+        return file.toPath();
     }
 
-    private String getFileName(String fileName) {
+    private String getDestination(String filename, String path) {
+        return FOLDER + path + File.separator + filename;
+    }
+
+    private String getFileName(String path, String fileName) {
         String extension = FilenameUtils.getExtension(fileName);
         String tempFileName = fileName;
-        boolean fileExist = isFileWithTheName(fileName);
+        boolean fileExist = isFileWithTheName(fileName, path);
         int i = 1;
         while (fileExist) {
             tempFileName = fileName.substring(0, fileName.indexOf(extension) - 1) + "(" + i++ + ")." + extension;
-            fileExist = isFileWithTheName(tempFileName);
+            fileExist = isFileWithTheName(tempFileName, path);
         }
 
         return tempFileName;
     }
 
-    private boolean isFileWithTheName(String fileName) {
-        return new File(getDestination(fileName)).exists();
+    private boolean isFileWithTheName(String fileName, String path) {
+        return new File(getDestination(fileName, path)).exists();
     }
 
     public void delete(String path, String filename) {
