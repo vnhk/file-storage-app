@@ -1,6 +1,10 @@
 package com.bervan.filestorage.service;
 
+import com.bervan.common.search.SearchQueryOption;
+import com.bervan.common.search.SearchRequest;
 import com.bervan.common.search.SearchService;
+import com.bervan.common.search.model.SearchOperation;
+import com.bervan.common.search.model.SearchResponse;
 import com.bervan.common.service.BaseService;
 import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.FileDownloadException;
@@ -21,10 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -34,13 +35,15 @@ import java.util.zip.ZipInputStream;
 public class FileServiceManager extends BaseService<UUID, Metadata> {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
+    private final SearchService searchService;
     private final BervanLogger log;
 
-    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, BervanLogger log, MetadataRepository repository) {
+    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, BervanLogger log, MetadataRepository repository, SearchService searchService1) {
         super(repository, searchService);
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
         this.log = log;
+        this.searchService = searchService1;
     }
 
     @Transactional
@@ -142,6 +145,35 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         return fileDBStorageService.loadByPath(path).stream().filter(Metadata::isDirectory).collect(Collectors.toList());
     }
 
+    public Optional<Metadata> getParent(Metadata metadata) {
+        String path = metadata.getPath();
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        String lastFolder = path.substring(path.lastIndexOf("/") + 1);
+        String remainingPath = path.substring(0, path.lastIndexOf("/"));
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.addCriterion("G1", Metadata.class, "path",
+                SearchOperation.EQUALS_OPERATION, remainingPath);
+        searchRequest.addCriterion("G1", Metadata.class, "filename",
+                SearchOperation.EQUALS_OPERATION, lastFolder);
+        searchRequest.addCriterion("G1", Metadata.class, "isDirectory",
+                SearchOperation.EQUALS_OPERATION, true);
+
+        SearchQueryOption options = new SearchQueryOption(Metadata.class);
+        options.setSortField("filename");
+
+        SearchResponse<Metadata> response = searchService.search(searchRequest, options);
+
+        List<Metadata> resultList = response.getResultList();
+        if (resultList.size() == 1) {
+            return Optional.of(resultList.get(0));
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public Path doBackup() throws IOException, InterruptedException {
         return fileDiskStorageService.doBackup();
     }
@@ -192,16 +224,6 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         fileDiskStorageService.createEmptyDirectory(path, value);
 
         return metadata;
-    }
-
-//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
-    public List<Metadata> loadVideoById(String videoId) {
-        return fileDBStorageService.loadById(UUID.fromString(videoId));
-    }
-
-//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
-    public List<Metadata> loadVideosByPathStartsWith(String path) {
-        return fileDBStorageService.loadByPathStartsWith(path);
     }
 
     public Path getFile(UUID uuid) {
