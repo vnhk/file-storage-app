@@ -193,12 +193,6 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     }
 
     @Override
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
-    public Set<Metadata> load() {
-        return fileDBStorageService.load();
-    }
-
-    @Override
     public void delete(Metadata item) {
         fileDBStorageService.delete(item);
         try {
