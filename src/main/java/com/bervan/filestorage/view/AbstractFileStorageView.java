@@ -104,6 +104,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
 
                 Metadata newDirectory = fileServiceManager.createEmptyDirectory(path, value);
 
+                data.add(newDirectory);
                 grid.getDataProvider().refreshAll();
 
                 dialog.close();
@@ -118,7 +119,9 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
         synchronizeDBWithStorageFilesButton.addClickListener(buttonClickEvent -> {
             try {
                 loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
-                setItemsInGrid();
+                data.removeAll(data);
+                data.addAll(loadData());
+                grid.getDataProvider().refreshAll();
             } catch (FileNotFoundException e) {
                 showErrorNotification(e.getMessage());
             }
@@ -132,8 +135,8 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
         contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
     }
 
-
-    protected void setItemsInGrid() {
+    @Override
+    protected Set<Metadata> loadData() {
         getUI().ifPresent(ui -> {
             QueryParameters queryParameters = ui.getInternals().getActiveViewLocation().getQueryParameters();
             Map<String, String> parameters = queryParameters.getParameters()
@@ -169,7 +172,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
             metadata.add(previousFolderMetadata);
         }
 
-        grid.setItems(metadata);
+        return metadata;
     }
 
     @Override
@@ -297,7 +300,9 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
 
                 UI.getCurrent().navigate(ROUTE_NAME, QueryParameters.of("path", newPath));
                 path = newPath;
-                setItemsInGrid();
+                data.removeAll(data);
+                data.addAll(loadData());
+                grid.getDataProvider().refreshAll();
             }
         }
     }
@@ -343,7 +348,8 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
 
         deleteButton.addClickListener(click -> {
             fileServiceManager.delete(item);
-            deleteAndRemoveItemFromGrid(item);
+            removeItemFromGrid(item);
+            grid.getDataProvider().refreshAll();
             dialog.close();
         });
 
@@ -534,11 +540,12 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
 
                     if (extractCheckbox.isVisible() && extractCheckbox.getValue() && uploadedFile.getOriginalFilename().endsWith(".zip")) {
                         UploadResponse savedZip = fileServiceManager.saveAndExtractZip(uploadedFile, description.getValue(), path);
-                        savedZip.getMetadata().stream().filter(e -> e.getPath().equals(path));
-                        setItemsInGrid();
+                        List<Metadata> addedInCurrentPath = savedZip.getMetadata().stream().filter(e -> e.getPath().equals(path))
+                                .toList();
+                        data.addAll(addedInCurrentPath);
                     } else {
-                        fileServiceManager.save(uploadedFile, description.getValue(), path);
-                        setItemsInGrid();
+                        UploadResponse saved = fileServiceManager.save(uploadedFile, description.getValue(), path);
+                        data.add(saved.getMetadata().get(0));
                     }
 
                     grid.getDataProvider().refreshAll();
