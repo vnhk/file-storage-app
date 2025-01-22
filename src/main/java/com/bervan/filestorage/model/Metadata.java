@@ -5,7 +5,7 @@ import com.bervan.common.model.PersistableTableData;
 import com.bervan.history.model.AbstractBaseHistoryEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
-import org.jsoup.select.Evaluator;
+import org.hibernate.annotations.GenericGenerator;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -23,7 +23,6 @@ import java.util.UUID;
 
 public class Metadata extends BervanBaseEntity<UUID> implements  PersistableTableData<UUID> {
     @Id
-    @GeneratedValue
     private UUID id;
     private String filename;
     private String path;
