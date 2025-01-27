@@ -16,6 +16,8 @@ import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.security.access.prepost.PostFilter;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +28,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -53,21 +59,24 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         }
 
         UploadResponse uploadResponse = new UploadResponse();
-        List<Metadata> savedFilesMetadata = new ArrayList<>();
         Path zipFile = null;
+        List<Metadata> savedFilesMetadata = new ArrayList<>();
+
         try {
             String[] pathParts = file.getOriginalFilename().split(Pattern.quote(File.separator));
             String fileNameTmp = fileDiskStorageService.storeTmp(file, pathParts[pathParts.length - 1]);
 
             zipFile = fileDiskStorageService.getTmpFile(fileNameTmp);
 
+            ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+            log.info("Available processors: " + Runtime.getRuntime().availableProcessors());
+            List<Future<UploadResponse>> futures = new ArrayList<>();
+
             try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
                 ZipEntry zipEntry;
+
                 while ((zipEntry = zis.getNextEntry()) != null) {
-                    if (zipEntry.getName().startsWith("__")) {
-                        continue;
-                    }
-                    if (zipEntry.isDirectory()) {
+                    if (zipEntry.getName().startsWith("__") || zipEntry.isDirectory()) {
                         continue;
                     }
 
@@ -78,20 +87,28 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
                     Files.copy(zis, tempFilePath, StandardCopyOption.REPLACE_EXISTING);
 
-                    BervanMockMultiPartFile multipartFile = new BervanMockMultiPartFile(
-                            extractedFilename,
-                            extractedFilename,
-                            Files.probeContentType(tempFilePath),
-                            Files.newInputStream(tempFilePath)
-                    );
+                    SecurityContext context = SecurityContextHolder.getContext();
+                    futures.add(executorService.submit(() -> {
+                        SecurityContextHolder.setContext(context);
+                        return processFile(tempFilePath, extractedFilename, description, path);
+                    }));
 
-                    UploadResponse saved = save(multipartFile, description, path);
-
-                    savedFilesMetadata.addAll(saved.getMetadata());
-                    Files.delete(tempFilePath);
+                    zis.closeEntry();
                 }
-                zis.closeEntry();
+            } finally {
+                executorService.shutdown();
             }
+
+            List<UploadResponse> uploadResponses = new ArrayList<>();
+            for (Future<UploadResponse> future : futures) {
+                try {
+                    uploadResponses.add(future.get());
+                } catch (ExecutionException e) {
+                    log.error(e);
+                }
+            }
+
+            uploadResponses.forEach(response -> savedFilesMetadata.addAll(response.getMetadata()));
         } catch (Exception e) {
             for (Metadata filesToBeReverted : savedFilesMetadata) {
                 Files.deleteIfExists(fileDiskStorageService.getFile(filesToBeReverted.getPath() + File.separator + filesToBeReverted.getFilename()));
@@ -108,6 +125,16 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         return uploadResponse;
     }
 
+    private UploadResponse processFile(Path tempFilePath, String extractedFilename, String description, String path) throws IOException {
+        try {
+            BervanMockMultiPartFile multipartFile = new BervanMockMultiPartFile(extractedFilename, extractedFilename, Files.probeContentType(tempFilePath), Files.newInputStream(tempFilePath));
+
+            return save(multipartFile, description, path);
+        } finally {
+            Files.delete(tempFilePath);
+        }
+    }
+
     @Transactional
     public UploadResponse save(MultipartFile file, String description, String path) {
         UploadResponse uploadResponse = new UploadResponse();
@@ -122,9 +149,11 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             }
 
             newPath += File.separator + pathPart;
-            if (directoriesInPath.stream().noneMatch(e -> e.getFilename().equals(pathPart))) {
-                Metadata emptyDirectory = createEmptyDirectory(path, pathPart);
-                createdMetadata.add(emptyDirectory);
+            synchronized (this) {
+                if (directoriesInPath.stream().noneMatch(e -> e.getFilename().equals(pathPart))) {
+                    Metadata emptyDirectory = createEmptyDirectory(path, pathPart);
+                    createdMetadata.add(emptyDirectory);
+                }
             }
             path = newPath;
         }
