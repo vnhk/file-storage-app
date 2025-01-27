@@ -7,6 +7,7 @@ import com.bervan.common.search.model.SearchOperation;
 import com.bervan.common.search.model.SearchResponse;
 import com.bervan.common.service.BaseService;
 import com.bervan.core.model.BervanLogger;
+import com.bervan.filestorage.model.BervanMockMultiPartFile;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
@@ -14,7 +15,6 @@ import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -78,7 +78,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
                     Files.copy(zis, tempFilePath, StandardCopyOption.REPLACE_EXISTING);
 
-                    MultipartFile multipartFile = new MockMultipartFile(
+                    BervanMockMultiPartFile multipartFile = new BervanMockMultiPartFile(
                             extractedFilename,
                             extractedFilename,
                             Files.probeContentType(tempFilePath),
