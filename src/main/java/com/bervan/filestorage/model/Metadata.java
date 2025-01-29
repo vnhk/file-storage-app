@@ -5,7 +5,6 @@ import com.bervan.common.model.PersistableTableData;
 import com.bervan.history.model.AbstractBaseHistoryEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
-import org.hibernate.annotations.GenericGenerator;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
