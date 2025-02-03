@@ -52,7 +52,6 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         this.searchService = searchService1;
     }
 
-    @Transactional
     public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path) throws IOException {
         if (!file.getOriginalFilename().endsWith(".zip")) {
             throw new RuntimeException("File is not a zip!");
