@@ -75,7 +75,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
                 ZipEntry zipEntry;
 
                 while ((zipEntry = zis.getNextEntry()) != null) {
-                    if (zipEntry.getName().startsWith("__") || zipEntry.isDirectory()) {
+                    if (zipEntry.getName().startsWith("__") || zipEntry.getName().startsWith(".") || zipEntry.isDirectory()) {
                         continue;
                     }
 
