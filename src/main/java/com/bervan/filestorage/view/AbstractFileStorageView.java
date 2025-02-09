@@ -136,7 +136,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
     }
 
     @Override
-    protected Set<Metadata> loadData() {
+    protected List<Metadata> loadData() {
         getUI().ifPresent(ui -> {
             QueryParameters queryParameters = ui.getInternals().getActiveViewLocation().getQueryParameters();
             Map<String, String> parameters = queryParameters.getParameters()
@@ -172,7 +172,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
             metadata.add(previousFolderMetadata);
         }
 
-        return metadata;
+        return metadata.stream().toList();
     }
 
     @Override
