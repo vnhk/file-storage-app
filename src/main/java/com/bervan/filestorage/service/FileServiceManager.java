@@ -16,8 +16,6 @@ import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.security.access.prepost.PostFilter;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,10 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -66,10 +60,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             String fileNameTmp = fileDiskStorageService.storeTmp(file, pathParts[pathParts.length - 1]);
 
             zipFile = fileDiskStorageService.getTmpFile(fileNameTmp);
-
-            ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-            log.info("Available processors: " + Runtime.getRuntime().availableProcessors());
-            List<Future<UploadResponse>> futures = new ArrayList<>();
+            List<UploadResponse> uploadResponses = new ArrayList<>();
 
             try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
                 ZipEntry zipEntry;
@@ -80,30 +71,21 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
                     }
 
                     String extractedFilename = zipEntry.getName();
+                    log.info("Started processing file: " + extractedFilename);
+
                     String[] extractedPathParts = extractedFilename.split(Pattern.quote(File.separator));
                     String fileName = extractedPathParts[extractedPathParts.length - 1];
                     Path tempFilePath = Files.createTempFile("extracted_", "_" + fileName);
 
+                    log.info("File is BEING SAVED as temp: " + extractedFilename + " in " + tempFilePath);
                     Files.copy(zis, tempFilePath, StandardCopyOption.REPLACE_EXISTING);
+                    log.info("File is SAVED as temp: " + extractedFilename + " in " + tempFilePath);
 
-                    SecurityContext context = SecurityContextHolder.getContext();
-                    futures.add(executorService.submit(() -> {
-                        SecurityContextHolder.setContext(context);
-                        return processFile(tempFilePath, extractedFilename, description, path);
-                    }));
+                    log.info("File is being processed " + extractedFilename + " in destination path: " + path);
+                    uploadResponses.add(processFile(tempFilePath, extractedFilename, description, path));
+                    log.info("File is processed " + extractedFilename + " in destination path: " + path);
 
                     zis.closeEntry();
-                }
-            } finally {
-                executorService.shutdown();
-            }
-
-            List<UploadResponse> uploadResponses = new ArrayList<>();
-            for (Future<UploadResponse> future : futures) {
-                try {
-                    uploadResponses.add(future.get());
-                } catch (ExecutionException e) {
-                    log.error(e);
                 }
             }
 
@@ -127,7 +109,6 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     private UploadResponse processFile(Path tempFilePath, String extractedFilename, String description, String path) throws IOException {
         try {
             BervanMockMultiPartFile multipartFile = new BervanMockMultiPartFile(extractedFilename, extractedFilename, Files.probeContentType(tempFilePath), Files.newInputStream(tempFilePath));
-
             return save(multipartFile, description, path);
         } finally {
             Files.delete(tempFilePath);
@@ -136,9 +117,12 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public UploadResponse save(MultipartFile file, String description, String path) {
+        log.info("FILE PATH SEPARATOR: " + File.separator);
+        log.info("Saving file in DB and on a disk: " + path);
         UploadResponse uploadResponse = new UploadResponse();
         List<Metadata> createdMetadata = new ArrayList<>();
 
+        log.info("Building new destination path....");
         String[] pathParts = file.getOriginalFilename().split(Pattern.quote(File.separator));
         List<Metadata> directoriesInPath = getDirectoriesInPath(path);
         String newPath = path;
@@ -148,19 +132,21 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             }
 
             newPath += File.separator + pathPart;
-            synchronized (this) {
-                if (directoriesInPath.stream().noneMatch(e -> e.getFilename().equals(pathPart))) {
-                    Metadata emptyDirectory = createEmptyDirectory(path, pathPart);
-                    createdMetadata.add(emptyDirectory);
-                }
+            if (directoriesInPath.stream().noneMatch(e -> e.getFilename().equals(pathPart))) {
+                Metadata emptyDirectory = createEmptyDirectory(path, pathPart);
+                createdMetadata.add(emptyDirectory);
             }
             path = newPath;
         }
+        String filename = pathParts[pathParts.length - 1];
+        log.info("New destination path: " + path);
+        log.info("Extracted filename: " + filename);
 
-        String filename = fileDiskStorageService.store(file, path, pathParts[pathParts.length - 1]);
+        filename = fileDiskStorageService.store(file, path, filename);
         LocalDateTime createDate = LocalDateTime.now();
         uploadResponse.setCreateDate(createDate);
 
+        log.info("Saving metadata in database for file: " + filename + " and path: " + path);
         Metadata stored = fileDBStorageService.store(createDate, path, filename, description, FilenameUtils.getExtension(filename), false);
         createdMetadata.add(stored);
         uploadResponse.setMetadata(createdMetadata);
@@ -242,8 +228,12 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public Metadata createEmptyDirectory(String path, String value) {
+        log.info("CREATING new empty directory: " + value + " in a path " + path);
+
         Metadata metadata = fileDBStorageService.createEmptyDirectory(path, value);
         fileDiskStorageService.createEmptyDirectory(path, value);
+
+        log.info("CREATED new empty directory: " + value + " in a path " + path);
 
         return metadata;
     }

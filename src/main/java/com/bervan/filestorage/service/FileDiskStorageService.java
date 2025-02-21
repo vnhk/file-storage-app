@@ -35,7 +35,7 @@ public class FileDiskStorageService {
     }
 
     public String store(MultipartFile file, String path, String fileName) {
-        log.info("Saving " + fileName + " in path: " + path);
+        log.info("Saving on a disk: " + fileName + " in path: " + path);
 
         path = path.replaceAll(FOLDER, "");
 
@@ -49,12 +49,12 @@ public class FileDiskStorageService {
 
         try {
             String destination = FOLDER + path + File.separator + fileName;
-            log.info("Saving " + fileName + " in destination: " + destination);
+            log.info("Saving on a disk " + fileName + " in destination: " + destination);
             File fileTmp = new File(destination);
             File directory = new File(FOLDER + path + File.separator);
             directory.mkdirs();
             file.transferTo(fileTmp);
-            log.info("Saved " + fileName + " in destination: " + fileTmp.getAbsolutePath());
+            log.info("Saved on a disk" + fileName + " in destination: " + fileTmp.getAbsolutePath());
         } catch (IOException e) {
             log.error(e);
             throw new FileUploadException(e.getMessage());
