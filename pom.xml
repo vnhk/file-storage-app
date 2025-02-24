@@ -12,7 +12,7 @@
 
     <groupId>com.bervan</groupId>
     <artifactId>file-storage-app</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>latest</version>
     <name>file-storage-app</name>
     <packaging>jar</packaging>
 
@@ -88,29 +88,24 @@
         <dependency>
             <groupId>com.bervan</groupId>
             <artifactId>common-vaadin</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>latest</version>
         </dependency>
         <dependency>
             <groupId>com.bervan</groupId>
             <artifactId>history-tables-core</artifactId>
-            <version>2.0.0</version>
+            <version>latest</version>
         </dependency>
         <dependency>
             <groupId>com.bervan</groupId>
             <artifactId>ie-entities</artifactId>
-            <version>2.0.2</version>
+            <version>latest</version>
         </dependency>
         <dependency>
-            <groupId>com.vaadin</groupId>
-            <artifactId>exampledata</artifactId>
-            <version>6.2.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>commons-io</groupId>
-                    <artifactId>commons-io</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>com.bervan</groupId>
+            <artifactId>core</artifactId>
+            <version>latest</version>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -159,6 +154,7 @@
     </dependencies>
 
     <build>
+        <finalName>${project.artifactId}</finalName>
         <defaultGoal>spring-boot:run</defaultGoal>
         <plugins>
 
@@ -181,59 +177,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <!-- Production mode is activated using -Pproduction -->
-            <id>production</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.vaadin</groupId>
-                        <artifactId>vaadin-maven-plugin</artifactId>
-                        <version>${vaadin.version}</version>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>build-frontend</goal>
-                                </goals>
-                                <phase>compile</phase>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <productionMode>true</productionMode>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>it</id>
-            <build>
-                <plugins>
-
-                    <!-- Runs the integration tests (*IT) after the server is started -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-failsafe-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>integration-test</goal>
-                                    <goal>verify</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <trimStackTrace>false</trimStackTrace>
-                            <enableAssertions>true</enableAssertions>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-    </profiles>
-
 </project>
