@@ -11,6 +11,7 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 public class FileViewerView extends AbstractPageView {
     private static List<FileViewer> fileViewers = new ArrayList<>();
     public boolean isFileSupportView = false;
@@ -31,7 +33,7 @@ public class FileViewerView extends AbstractPageView {
         fileViewers.add(new TextViewer());
     }
 
-    public FileViewerView(BervanLogger log, Metadata metadata, String fileServicePath) {
+    public FileViewerView(Metadata metadata, String fileServicePath) {
         removeClassName("bervan-page");
         final String finalPath = fileServicePath + File.separator + metadata.getPath() + File.separator + metadata.getFilename();
         try {

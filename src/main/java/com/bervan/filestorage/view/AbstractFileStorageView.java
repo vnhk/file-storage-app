@@ -1,6 +1,6 @@
 package com.bervan.filestorage.view;
 
-import com.bervan.common.AbstractTableView;
+import com.bervan.common.AbstractBervanTableView;
 import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
@@ -31,6 +31,7 @@ import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.QueryParameters;
 import io.micrometer.common.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -42,7 +43,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Metadata> {
+@Slf4j
+public abstract class AbstractFileStorageView extends AbstractBervanTableView<UUID, Metadata> {
     public static final String ROUTE_NAME = "file-storage-app/files";
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;
@@ -272,7 +274,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
     }
 
     @Override
-    protected void buildOnColumnClickDialogContent(Dialog dialog, VerticalLayout dialogLayout, HorizontalLayout headerLayout, String clickedColumn, Metadata item) {
+    protected void buildOnColumnClickDialogContent(Dialog dialog, VerticalLayout dialogLayout, HorizontalLayout headerLayout, String clickedField, Metadata item) {
         throw new RuntimeException("Not valid for this view");
     }
 
@@ -312,7 +314,7 @@ public abstract class AbstractFileStorageView extends AbstractTableView<UUID, Me
         Dialog dialog = new Dialog();
         dialog.setWidth("95vw");
 
-        FileViewerView fileViewerView = new FileViewerView(log, event.getItem(), FOLDER);
+        FileViewerView fileViewerView = new FileViewerView(event.getItem(), FOLDER);
 
         VerticalLayout dialogLayout = new VerticalLayout();
         HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
