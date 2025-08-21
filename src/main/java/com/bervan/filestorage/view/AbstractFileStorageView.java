@@ -134,8 +134,12 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
         HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton, createDirectory);
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
+        contentLayout.addComponentAtIndex(0, new Hr());
         contentLayout.addComponentAtIndex(0, buttons);
+        contentLayout.addComponentAtIndex(0, new Hr());
         contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
+
+        paginationBar.setVisible(false);
     }
 
     @Override
