@@ -1,9 +1,7 @@
 package com.bervan.filestorage.view.fileviever;
 
-import com.bervan.common.AbstractPageView;
-import com.bervan.core.model.BervanLogger;
+import com.bervan.common.view.AbstractPageView;
 import com.bervan.filestorage.model.Metadata;
-import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.icon.Icon;
