@@ -55,7 +55,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private String FOLDER;
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log) {
-        super(new FileStorageAppPageLayout(ROUTE_NAME), service, log, Metadata.class);
+        super(new FileStorageAppPageLayout(ROUTE_NAME), service, log, Metadata .class);
         super.checkboxesColumnsEnabled = false;
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
