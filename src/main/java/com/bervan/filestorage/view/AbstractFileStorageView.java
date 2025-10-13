@@ -86,7 +86,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                     try {
                         loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
                         asyncTaskService.setFinished(asyncTask, "Synchronization for all files finished successfully.");
-                    } catch (FileNotFoundException e) {
+                    } catch (Exception e) {
                         asyncTaskService.setFailed(asyncTask, e.getMessage());
                     }
                 }).start();

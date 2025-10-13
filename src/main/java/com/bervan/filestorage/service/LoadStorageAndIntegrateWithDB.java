@@ -2,13 +2,14 @@ package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.Metadata;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.io.FileNotFoundException;
 import java.util.List;
 import java.util.Set;
 
 @Service
+@Slf4j
 public class LoadStorageAndIntegrateWithDB {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
@@ -19,9 +20,14 @@ public class LoadStorageAndIntegrateWithDB {
     }
 
     @Transactional
-    public void synchronizeStorageWithDB() throws FileNotFoundException {
+    public void synchronizeStorageWithDB() {
         List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder();
 
+        long count = allFilesInFolder.stream().filter(e -> e.getPath().isEmpty()).count();
+        if (count != 0) {
+            log.error("Incorrect path amount of files:" + count);
+            throw new RuntimeException("Incorrect path amount of files:" + count);
+        }
         Set<Metadata> load = fileDBStorageService.load();
 
         for (Metadata metadata : load) {
