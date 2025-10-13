@@ -2,11 +2,11 @@ package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.Metadata;
 import jakarta.transaction.Transactional;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class LoadStorageAndIntegrateWithDB {
@@ -21,6 +21,17 @@ public class LoadStorageAndIntegrateWithDB {
     @Transactional
     public void synchronizeStorageWithDB() throws FileNotFoundException {
         List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder();
+
+        Set<Metadata> load = fileDBStorageService.load();
+
+        for (Metadata metadata : load) {
+            if (allFilesInFolder.stream().noneMatch(m ->
+                    m.getPath().equals(metadata.getPath())
+                            && m.getFilename().equals(metadata.getFilename())
+            )) {
+                fileDBStorageService.delete(metadata);
+            }
+        }
 
         for (Metadata metadata : allFilesInFolder) {
             if (fileDBStorageService.loadByPathAndFilename(metadata.getPath(), metadata.getFilename()).isEmpty()) {

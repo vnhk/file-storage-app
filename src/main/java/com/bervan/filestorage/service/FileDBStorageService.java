@@ -3,7 +3,6 @@ package com.bervan.filestorage.service;
 import com.bervan.common.service.AuthService;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.repository.MetadataRepository;
-import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -37,7 +36,7 @@ public class FileDBStorageService {
     }
 
     public void delete(Metadata metadata) {
-        if(metadata.isDirectory()) {
+        if (metadata.isDirectory()) {
             for (Metadata m : loadByPath(metadata.getPath() + File.separator + metadata.getFilename())) {
                 delete(m);
             }
@@ -45,17 +44,14 @@ public class FileDBStorageService {
         fileEntityRepository.delete(metadata);
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> load() {
         return new HashSet<>(fileEntityRepository.findAll());
     }
 
-//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
         return fileEntityRepository.findByPath(path);
     }
 
-//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public List<Metadata> loadById(UUID id) {
         Optional<Metadata> byId = fileEntityRepository.findById(id);
         if (byId.isPresent()) {
@@ -66,9 +62,8 @@ public class FileDBStorageService {
         return new ArrayList<>();
     }
 
-    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public List<Metadata> loadByPathAndFilename(String path, String filename) {
-        return fileEntityRepository.findByPathAndFilenameAndOwnersId(path, filename, AuthService.getLoggedUserId());
+        return fileEntityRepository.findByPathAndFilename(path, filename);
     }
 
     public Metadata createEmptyDirectory(String path, String value) {
@@ -80,10 +75,5 @@ public class FileDBStorageService {
             throw new RuntimeException("Unable to update Metadata! Id is null!");
         }
         return fileEntityRepository.save(data);
-    }
-
-//    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
-    public List<Metadata> loadByPathStartsWith(String path) {
-        return fileEntityRepository.findByPathStartsWith(path);
     }
 }

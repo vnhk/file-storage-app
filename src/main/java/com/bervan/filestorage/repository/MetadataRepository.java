@@ -8,13 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public interface MetadataRepository extends BaseRepository<Metadata, UUID> {
-    List<Metadata> findByPathAndFilenameAndOwnersId(String path, String filename, UUID ownerId);
-
-    Set<Metadata> findByPathAndOwnersId(String path, UUID ownerId);
-
-    List<Metadata> findByPathStartsWithAndOwnersId(String path, UUID loggedUserId);
-
-    List<Metadata> findByPathStartsWith(String path);
+    List<Metadata> findByPathAndFilename(String path, String filename);
 
     Set<Metadata> findByPath(String path);
 }

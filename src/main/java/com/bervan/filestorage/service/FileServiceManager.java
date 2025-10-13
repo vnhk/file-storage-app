@@ -221,7 +221,6 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         throw new RuntimeException("Unsupported");
     }
 
-    //    @PostFilter("(T(com.bervan.common.service.AuthService).hasAccess(filterObject.owners))")
     public Set<Metadata> loadByPath(String path) {
         return fileDBStorageService.loadByPath(path);
     }

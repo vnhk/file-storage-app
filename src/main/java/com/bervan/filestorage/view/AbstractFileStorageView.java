@@ -1,5 +1,8 @@
 package com.bervan.filestorage.view;
 
+import com.bervan.asynctask.AsyncTask;
+import com.bervan.asynctask.AsyncTaskService;
+import com.bervan.common.component.BervanButton;
 import com.bervan.common.view.AbstractBervanTableView;
 import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
@@ -33,6 +36,8 @@ import com.vaadin.flow.router.QueryParameters;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -48,14 +53,16 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     public static final String ROUTE_NAME = "file-storage-app/files";
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;
+    private final AsyncTaskService asyncTaskService;
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
-    private String path = "";
     private final H4 pathInfoComponent = new H4();
+    private String path = "/";
     @Value("${file.service.storage.folder}")
     private String FOLDER;
 
-    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log) {
-        super(new FileStorageAppPageLayout(ROUTE_NAME), service, log, Metadata .class);
+    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log, AsyncTaskService asyncTaskService) {
+        super(new FileStorageAppPageLayout(ROUTE_NAME), service, log, Metadata.class);
+        this.asyncTaskService = asyncTaskService;
         super.checkboxesColumnsEnabled = false;
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
@@ -67,11 +74,28 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         renderCommonComponents();
         contentLayout.remove(addButton);
 
-        Button synchronizeDBWithStorageFilesButton = new Button("Synchronize");
-        synchronizeDBWithStorageFilesButton.addClassName("option-button");
+        Button synchronizeDBWithStorageFilesButton = new BervanButton("Synchronize All", buttonClickEvent -> {
+            try {
+                SecurityContext context = SecurityContextHolder.getContext();
 
-        Button createDirectory = new Button("New Folder");
-        createDirectory.addClassName("option-button");
+                AsyncTask newAsyncTask = asyncTaskService.createAndStoreAsyncTask();
+                showPrimaryNotification("Synchronization in progress. Please wait... You will be notified.");
+                new Thread(() -> {
+                    SecurityContextHolder.setContext(context);
+                    AsyncTask asyncTask = asyncTaskService.setInProgress(newAsyncTask, "Synchronizing DB with storage files for all files");
+                    try {
+                        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+                        asyncTaskService.setFinished(asyncTask, "Synchronization for all files finished successfully.");
+                    } catch (FileNotFoundException e) {
+                        asyncTaskService.setFailed(asyncTask, e.getMessage());
+                    }
+                }).start();
+            } catch (Exception e) {
+                showErrorNotification(e.getMessage());
+            }
+        });
+
+        Button createDirectory = new BervanButton("New Folder");
 
         createDirectory.addClickListener(buttonClickEvent -> {
             Dialog dialog = new Dialog();
@@ -84,8 +108,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             TextField field = new TextField("Directory name:");
             field.setWidth("50%");
 
-            Button createButton = new Button("Create");
-            createButton.addClassName("option-button");
+            Button createButton = new BervanButton("Create");
 
             createButton.addClickListener(createEvent -> {
                 String value = field.getValue();
@@ -119,16 +142,6 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             dialog.open();
         });
 
-        synchronizeDBWithStorageFilesButton.addClickListener(buttonClickEvent -> {
-            try {
-                loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
-                data.removeAll(data);
-                data.addAll(loadData());
-                grid.getDataProvider().refreshAll();
-            } catch (FileNotFoundException e) {
-                showErrorNotification(e.getMessage());
-            }
-        });
         addButton.setText("Upload file");
         addButton.addClassName("option-button");
 
@@ -155,14 +168,14 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                                     e -> String.join("", e.getValue())
                             )
                     );
-            path = parameters.getOrDefault("path", "");
+            path = parameters.getOrDefault("path", "/");
         });
 
 
-        pathInfoComponent.setText("Path: /" + path);
+        pathInfoComponent.setText("Path: " + path);
         Set<Metadata> metadata = fileServiceManager.loadByPath(path);
 
-        if (!path.isBlank()) {
+        if (!path.isBlank() && !"/".equals(path)) {
             String previousFolderPath = "";
 
             String[] subFolders = path.split("/");
