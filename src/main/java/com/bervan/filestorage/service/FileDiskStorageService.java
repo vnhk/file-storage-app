@@ -23,12 +23,12 @@ import java.util.stream.Stream;
 
 @Service
 public class FileDiskStorageService {
+    private final BervanLogger log;
     @Value("${file.service.storage.folder}")
     private String FOLDER;
     @Value("${global-tmp-dir.file-storage-relative-path}")
     private String GLOBAL_TMP_DIR;
     private String BACKUP_FILE;
-    private final BervanLogger log;
 
     public FileDiskStorageService(BervanLogger log) {
         this.log = log;
@@ -117,8 +117,8 @@ public class FileDiskStorageService {
     private String getAbsolutePathThatHaveToBeSavedInMetadata(File file) {
         String absolutePath = file.getAbsolutePath();
         absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
-        if (absolutePath.startsWith(File.separator) && absolutePath.length() > 2) {
-            absolutePath = absolutePath.substring(1, absolutePath.length() - 1);
+        if (!absolutePath.startsWith(File.separator)) {
+            absolutePath = File.separator + absolutePath;
         }
         return absolutePath;
     }

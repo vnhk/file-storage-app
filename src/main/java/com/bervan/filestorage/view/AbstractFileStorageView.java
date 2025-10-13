@@ -41,7 +41,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -185,9 +184,6 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                 }
             }
 
-            if (previousFolderPath.endsWith("/")) {
-                previousFolderPath = previousFolderPath.substring(0, previousFolderPath.length() - 2);
-            }
             Metadata previousFolderMetadata = new Metadata(previousFolderPath, "../", null, null, true);
             metadata.add(previousFolderMetadata);
         }
@@ -315,7 +311,15 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                 } else if (item.getPath().isBlank()) {
                     newPath = item.getFilename();
                 } else {
-                    newPath = item.getPath() + File.separator + item.getFilename();
+                    if (!item.getPath().endsWith("/")) {
+                        newPath = item.getPath() + File.separator + item.getFilename();
+                    } else {
+                        newPath = item.getPath() + item.getFilename();
+                    }
+                }
+
+                if (!newPath.endsWith("/")) {
+                    newPath += "/";
                 }
 
                 UI.getCurrent().navigate(ROUTE_NAME, QueryParameters.of("path", newPath));
