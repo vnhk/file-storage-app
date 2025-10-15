@@ -13,7 +13,6 @@ import com.bervan.filestorage.view.fileviever.FileViewerView;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
@@ -28,8 +27,6 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.component.upload.Upload;
-import com.vaadin.flow.component.upload.receivers.FileBuffer;
 import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.QueryParameters;
@@ -38,11 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -422,170 +416,35 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     @Override
     protected void newItemButtonClick() {
-        Dialog dialog = new Dialog();
-        dialog.setWidth("95vw");
+        UploadComponent uploadComponent = new FileTableUploadComponent<>(fileServiceManager, path, data, grid);
+        uploadComponent.open();
+    }
 
-        VerticalLayout dialogLayout = new VerticalLayout();
+    static class FileTableUploadComponent<T> extends UploadComponent {
 
-        HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
+        protected Grid<Metadata> grid;
+        protected List<Metadata> data;
 
-        TextArea description = new TextArea("Description");
-        description.setWidth("100%");
+        public FileTableUploadComponent(FileServiceManager fileServiceManager, String path, List<Metadata> data, Grid<Metadata> grid) {
+            super(fileServiceManager, path);
+            this.data = data;
+            this.grid = grid;
+        }
 
-        FileBuffer buffer = new FileBuffer();
-        Upload upload = new Upload(buffer);
-        List<MultipartFile> holder = new ArrayList<>();
-        upload.addSucceededListener(event -> {
-            if (holder.size() > 0) {
-                holder.remove(0);
-            }
+        @Override
+        protected void postSaveActions() {
+            grid.getDataProvider().refreshAll();
+            super.postSaveActions();
+        }
 
-            try {
-                InputStream inputStream = buffer.getInputStream();
-                holder.add(0, new MultipartFile() {
-                    @Override
-                    public String getName() {
-                        return event.getFileName();
-                    }
+        @Override
+        protected void postSavedZipActions(List<Metadata> addedInCurrentPath) {
+            data.addAll(addedInCurrentPath);
+        }
 
-                    @Override
-                    public String getOriginalFilename() {
-                        return event.getFileName();
-                    }
-
-                    @Override
-                    public String getContentType() {
-                        return event.getMIMEType();
-                    }
-
-                    @Override
-                    public boolean isEmpty() {
-                        throw new RuntimeException("Not supported");
-
-                    }
-
-                    @Override
-                    public long getSize() {
-                        throw new RuntimeException("Not supported");
-
-                    }
-
-                    @Override
-                    public byte[] getBytes() throws IOException {
-                        throw new RuntimeException("Not supported");
-                    }
-
-                    @Override
-                    public InputStream getInputStream() throws IOException {
-                        return inputStream;
-                    }
-
-                    @Override
-                    public void transferTo(File dest) throws IOException, IllegalStateException {
-                        transferTo(dest.toPath());
-                    }
-                });
-            } catch (Exception e) {
-                log.error("Error uploading file: " + e.getMessage(), e);
-                showErrorNotification("Error uploading file: " + e.getMessage());
-            }
-        });
-
-        Button save = new Button("Save and upload");
-        save.addClassName("option-button");
-
-        Checkbox extractCheckbox = new Checkbox("Extract file");
-        extractCheckbox.setVisible(false);
-
-        upload.addSucceededListener(event -> {
-            if (holder.size() > 0) {
-                holder.remove(0);
-            }
-
-            try {
-                InputStream inputStream = buffer.getInputStream();
-                holder.add(0, new MultipartFile() {
-                    @Override
-                    public String getName() {
-                        return event.getFileName();
-                    }
-
-                    @Override
-                    public String getOriginalFilename() {
-                        return event.getFileName();
-                    }
-
-                    @Override
-                    public String getContentType() {
-                        return event.getMIMEType();
-                    }
-
-                    @Override
-                    public boolean isEmpty() {
-                        throw new RuntimeException("Not supported");
-                    }
-
-                    @Override
-                    public long getSize() {
-                        throw new RuntimeException("Not supported");
-                    }
-
-                    @Override
-                    public byte[] getBytes() throws IOException {
-                        throw new RuntimeException("Not supported");
-                    }
-
-                    @Override
-                    public InputStream getInputStream() throws IOException {
-                        return inputStream;
-                    }
-
-                    @Override
-                    public void transferTo(File dest) throws IOException, IllegalStateException {
-                        transferTo(dest.toPath());
-                    }
-                });
-
-                if (event.getFileName().endsWith(".zip")) {
-                    extractCheckbox.setVisible(true);
-                } else {
-                    extractCheckbox.setVisible(false);
-                }
-            } catch (Exception e) {
-                log.error("Error uploading file: " + e.getMessage(), e);
-                showErrorNotification("Error uploading file: " + e.getMessage());
-            }
-        });
-
-        save.addClickListener(buttonClickEvent -> {
-            if (holder.size() > 0) {
-                try {
-                    MultipartFile uploadedFile = holder.get(0);
-
-                    if (extractCheckbox.isVisible() && extractCheckbox.getValue() && uploadedFile.getOriginalFilename().endsWith(".zip")) {
-                        UploadResponse savedZip = fileServiceManager.saveAndExtractZip(uploadedFile, description.getValue(), path);
-                        List<Metadata> addedInCurrentPath = savedZip.getMetadata().stream().filter(e -> e.getPath().equals(path))
-                                .toList();
-                        data.addAll(addedInCurrentPath);
-                    } else {
-                        UploadResponse saved = fileServiceManager.save(uploadedFile, description.getValue(), path);
-                        data.add(saved.getMetadata().get(0));
-                    }
-
-                    grid.getDataProvider().refreshAll();
-                    showSuccessNotification("File uploaded successfully!");
-                    dialog.close();
-                } catch (Exception e) {
-                    log.error("Failed to save a file: ", e);
-                    showErrorNotification("Failed to save a file: " + e.getMessage());
-                }
-            } else {
-                showWarningNotification("Please attach a file!");
-            }
-        });
-
-        dialogLayout.add(headerLayout, description, upload, extractCheckbox, save);
-        dialog.add(dialogLayout);
-        dialog.open();
+        @Override
+        protected void postSaveActions(UploadResponse saved) {
+            data.add(saved.getMetadata().get(0));
+        }
     }
 }
