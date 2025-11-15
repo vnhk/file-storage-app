@@ -1,14 +1,15 @@
 package com.bervan.filestorage.service;
 
-import com.bervan.common.service.AuthService;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.repository.MetadataRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @Service
 public class FileDBStorageService {
     private final MetadataRepository fileEntityRepository;
@@ -36,8 +37,12 @@ public class FileDBStorageService {
     }
 
     public void delete(Metadata metadata) {
+        String path = metadata.getPath() + File.separator + metadata.getFilename();
+        log.info("Deleting file: {}", path);
         if (metadata.isDirectory()) {
-            for (Metadata m : loadByPath(metadata.getPath() + File.separator + metadata.getFilename())) {
+            log.info("Deleting directory: {}", path);
+            Set<Metadata> metadatas = loadByPath(path);
+            for (Metadata m : metadatas) {
                 delete(m);
             }
         }
