@@ -129,9 +129,13 @@ public class FileDiskStorageService {
         return file.toPath();
     }
 
-    public Path getTmpFile(String path) {
-        File file = new File(getDestination(path, GLOBAL_TMP_DIR));
+    public Path getTmpFile(String filename) {
+        File file = new File(getDestination(filename, GLOBAL_TMP_DIR));
         return file.toPath();
+    }
+
+    public boolean isTmpFile(String fileName) {
+        return new File(getDestination(fileName, GLOBAL_TMP_DIR)).exists();
     }
 
     private String getDestination(String filename, String path) {
