@@ -5,7 +5,6 @@ import com.bervan.asynctask.AsyncTaskService;
 import com.bervan.common.component.BervanButton;
 import com.bervan.common.config.BervanViewConfig;
 import com.bervan.common.view.AbstractBervanTableView;
-import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.service.FileServiceManager;
@@ -54,8 +53,8 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     @Value("${file.service.storage.folder}")
     private String FOLDER;
 
-    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, BervanLogger log, AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {
-        super(new FileStorageAppPageLayout(ROUTE_NAME), service, log, bervanViewConfig, Metadata.class);
+    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {
+        super(new FileStorageAppPageLayout(ROUTE_NAME), service, bervanViewConfig, Metadata.class);
         this.asyncTaskService = asyncTaskService;
         super.checkboxesColumnsEnabled = false;
         this.fileServiceManager = service;

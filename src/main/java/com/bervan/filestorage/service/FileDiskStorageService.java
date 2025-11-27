@@ -1,8 +1,8 @@
 package com.bervan.filestorage.service;
 
-import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.FileUploadException;
 import com.bervan.filestorage.model.Metadata;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,16 +22,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
+@Slf4j
 public class FileDiskStorageService {
-    private final BervanLogger log;
+
     @Value("${file.service.storage.folder}")
     private String FOLDER;
     @Value("${global-tmp-dir.file-storage-relative-path}")
     private String GLOBAL_TMP_DIR;
     private String BACKUP_FILE;
 
-    public FileDiskStorageService(BervanLogger log) {
-        this.log = log;
+    public FileDiskStorageService() {
     }
 
     public String store(MultipartFile file, String path, String fileName) {
@@ -56,7 +56,7 @@ public class FileDiskStorageService {
             file.transferTo(fileTmp);
             log.info("Saved on a disk" + fileName + " in destination: " + fileTmp.getAbsolutePath());
         } catch (IOException e) {
-            log.error(e);
+            log.error("Failed to store file", e);
             throw new FileUploadException(e.getMessage());
         }
         return fileName;
@@ -75,7 +75,7 @@ public class FileDiskStorageService {
             file.transferTo(fileTmp);
             log.info("Saved " + fileName + " in destination: " + fileTmp.getAbsolutePath());
         } catch (IOException e) {
-            log.error(e);
+            log.error("Failed to store tmp file", e);
             throw new FileUploadException(e.getMessage());
         }
         return fileName;

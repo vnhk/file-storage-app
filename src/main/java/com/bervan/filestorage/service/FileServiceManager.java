@@ -6,7 +6,6 @@ import com.bervan.common.search.SearchService;
 import com.bervan.common.search.model.SearchOperation;
 import com.bervan.common.search.model.SearchResponse;
 import com.bervan.common.service.BaseService;
-import com.bervan.core.model.BervanLogger;
 import com.bervan.filestorage.model.BervanMockMultiPartFile;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
@@ -14,6 +13,7 @@ import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
@@ -32,18 +32,18 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
+@Slf4j
 public class FileServiceManager extends BaseService<UUID, Metadata> {
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
     private final SearchService searchService;
-    private final BervanLogger log;
 
-    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, BervanLogger log, MetadataRepository repository, SearchService searchService1) {
+
+    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, MetadataRepository repository) {
         super(repository, searchService);
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
-        this.log = log;
-        this.searchService = searchService1;
+        this.searchService = searchService;
     }
 
     public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path) throws IOException {
