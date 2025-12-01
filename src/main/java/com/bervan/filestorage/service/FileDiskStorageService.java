@@ -2,7 +2,7 @@ package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.FileUploadException;
 import com.bervan.filestorage.model.Metadata;
-import lombok.extern.slf4j.Slf4j;
+import com.bervan.logging.JsonLogger;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,8 +22,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
-@Slf4j
 public class FileDiskStorageService {
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
 
     @Value("${file.service.storage.folder}")
     private String FOLDER;

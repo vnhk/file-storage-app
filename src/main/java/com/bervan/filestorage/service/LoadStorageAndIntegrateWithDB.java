@@ -1,16 +1,16 @@
 package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.Metadata;
+import com.bervan.logging.JsonLogger;
 import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
 
 @Service
-@Slf4j
 public class LoadStorageAndIntegrateWithDB {
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
 

@@ -4,6 +4,7 @@ import com.bervan.common.view.AbstractPageView;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.service.FileServiceManager;
+import com.bervan.logging.JsonLogger;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -12,7 +13,6 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.FileBuffer;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -21,8 +21,8 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-@Slf4j
 public abstract class UploadComponent extends AbstractPageView {
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
     private final FileServiceManager fileServiceManager;
     private final String path;
     private String[] setSupportedFiles = null;

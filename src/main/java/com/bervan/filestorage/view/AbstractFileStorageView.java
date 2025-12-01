@@ -41,8 +41,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-@Slf4j
+import com.bervan.logging.JsonLogger;
+
 public abstract class AbstractFileStorageView extends AbstractBervanTableView<UUID, Metadata> {
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
     public static final String ROUTE_NAME = "file-storage-app/files";
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;

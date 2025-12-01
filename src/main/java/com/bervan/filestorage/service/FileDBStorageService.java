@@ -2,16 +2,16 @@ package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.repository.MetadataRepository;
-import lombok.extern.slf4j.Slf4j;
+import com.bervan.logging.JsonLogger;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.time.LocalDateTime;
 import java.util.*;
 
-@Slf4j
 @Service
 public class FileDBStorageService {
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
     private final MetadataRepository fileEntityRepository;
 
     public FileDBStorageService(MetadataRepository fileEntityRepository) {

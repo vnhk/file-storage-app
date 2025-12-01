@@ -12,8 +12,8 @@ import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
+import com.bervan.logging.JsonLogger;
 import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
@@ -32,8 +32,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
-@Slf4j
 public class FileServiceManager extends BaseService<UUID, Metadata> {
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
     private final SearchService searchService;

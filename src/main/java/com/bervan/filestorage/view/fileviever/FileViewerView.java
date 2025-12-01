@@ -2,6 +2,7 @@ package com.bervan.filestorage.view.fileviever;
 
 import com.bervan.common.view.AbstractPageView;
 import com.bervan.filestorage.model.Metadata;
+import com.bervan.logging.JsonLogger;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.icon.Icon;
@@ -9,7 +10,6 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -18,18 +18,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-@Slf4j
 public class FileViewerView extends AbstractPageView {
     private static List<FileViewer> fileViewers = new ArrayList<>();
-    public boolean isFileSupportView = false;
-    private boolean fileExists = false;
-    private boolean isFileBig = false;
 
     static {
         fileViewers.add(new PDFViewer());
         fileViewers.add(new PictureViewer());
         fileViewers.add(new TextViewer());
     }
+
+    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    public boolean isFileSupportView = false;
+    private boolean fileExists = false;
+    private boolean isFileBig = false;
 
     public FileViewerView(Metadata metadata, String fileServicePath) {
         removeClassName("bervan-page");
