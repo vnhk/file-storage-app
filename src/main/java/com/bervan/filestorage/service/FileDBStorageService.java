@@ -11,7 +11,7 @@ import java.util.*;
 
 @Service
 public class FileDBStorageService {
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final MetadataRepository fileEntityRepository;
 
     public FileDBStorageService(MetadataRepository fileEntityRepository) {

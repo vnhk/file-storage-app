@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class UploadComponent extends AbstractPageView {
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileServiceManager fileServiceManager;
     private final String path;
     private String[] setSupportedFiles = null;

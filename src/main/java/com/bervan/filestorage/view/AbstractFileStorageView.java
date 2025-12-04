@@ -44,7 +44,7 @@ import java.util.*;
 import com.bervan.logging.JsonLogger;
 
 public abstract class AbstractFileStorageView extends AbstractBervanTableView<UUID, Metadata> {
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     public static final String ROUTE_NAME = "file-storage-app/files";
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;

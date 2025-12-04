@@ -33,7 +33,7 @@ import java.util.zip.ZipInputStream;
 
 @Service
 public class FileServiceManager extends BaseService<UUID, Metadata> {
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
     private final SearchService searchService;

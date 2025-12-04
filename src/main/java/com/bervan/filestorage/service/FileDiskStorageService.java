@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 
 @Service
 public class FileDiskStorageService {
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
 
     @Value("${file.service.storage.folder}")
     private String FOLDER;

@@ -10,7 +10,7 @@ import java.util.Set;
 
 @Service
 public class LoadStorageAndIntegrateWithDB {
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
 

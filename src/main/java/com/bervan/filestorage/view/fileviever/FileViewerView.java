@@ -27,7 +27,7 @@ public class FileViewerView extends AbstractPageView {
         fileViewers.add(new TextViewer());
     }
 
-    private final JsonLogger log = JsonLogger.getLogger(getClass());
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     public boolean isFileSupportView = false;
     private boolean fileExists = false;
     private boolean isFileBig = false;
