@@ -1,7 +1,7 @@
 package com.bervan.filestorage.model;
 
-import com.bervan.common.model.BervanBaseEntity;
-import com.bervan.common.model.PersistableTableData;
+import com.bervan.common.model.BervanOwnedBaseEntity;
+import com.bervan.common.model.PersistableTableOwnedData;
 import com.bervan.history.model.AbstractBaseHistoryEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -20,7 +20,7 @@ import java.util.UUID;
         @UniqueConstraint(columnNames = {"path", "filename"})
 )
 
-public class Metadata extends BervanBaseEntity<UUID> implements  PersistableTableData<UUID> {
+public class Metadata extends BervanOwnedBaseEntity<UUID> implements PersistableTableOwnedData<UUID> {
     @Id
     private UUID id;
     private String filename;
