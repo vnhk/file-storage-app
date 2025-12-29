@@ -49,7 +49,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
     }
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 2000000000)
     public void synchronizeStorageWithDBAtStartUp() {
         log.info("Synchronize storage with DB at start up");
         loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
