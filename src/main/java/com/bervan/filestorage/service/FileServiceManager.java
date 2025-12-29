@@ -15,11 +15,13 @@ import com.bervan.ieentities.ExcelIEEntity;
 import com.bervan.logging.JsonLogger;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,14 +38,29 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
+    private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
     private final SearchService searchService;
 
-
-    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, MetadataRepository repository) {
+    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, MetadataRepository repository, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
         super(repository, searchService);
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
         this.searchService = searchService;
+        this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
+    }
+
+    @Scheduled(fixedDelay = 10000)
+    public void synchronizeStorageWithDBAtStartUp() {
+        log.info("Synchronize storage with DB at start up");
+        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+        log.info("Storage synchronized with DB");
+    }
+
+    @Scheduled(cron = "0 0 0 * * *")
+    public void synchronizeStorageWithDBAtMidnight() {
+        log.info("Synchronize storage with DB at midnight");
+        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+        log.info("Storage synchronized with DB");
     }
 
     public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path) throws IOException {
@@ -243,6 +260,16 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             return fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
         } catch (Exception e) {
             throw new FileDownloadException("Cannot get file: " + uuid);
+        }
+    }
+
+    public byte[] readFile(Metadata metadata) {
+        try {
+            Path file = fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
+            FileInputStream fis = new FileInputStream(file.toFile());
+            return fis.readAllBytes();
+        } catch (Exception e) {
+            throw new FileDownloadException("Cannot get file: " + metadata.getId());
         }
     }
 }

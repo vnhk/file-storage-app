@@ -5,6 +5,7 @@ import com.bervan.common.model.PersistableTableOwnedData;
 import com.bervan.history.model.AbstractBaseHistoryEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
+import lombok.EqualsAndHashCode;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ import java.util.UUID;
         uniqueConstraints =
         @UniqueConstraint(columnNames = {"path", "filename"})
 )
-
+@EqualsAndHashCode(callSuper = false)//intentional false
 public class Metadata extends BervanOwnedBaseEntity<UUID> implements PersistableTableOwnedData<UUID> {
     @Id
     private UUID id;
@@ -32,6 +33,26 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     @Size(max = 2000)
     private String description;
     private LocalDateTime modificationDate;
+
+    public Metadata() {
+
+    }
+
+    public Metadata(String path, String filename, String extension, LocalDateTime createDate, boolean isDirectory) {
+        this.path = path;
+        this.filename = filename;
+        this.extension = extension;
+        this.createDate = createDate;
+        this.isDirectory = isDirectory;
+    }
+
+    public Metadata(UUID id, String path, String filename, String extension, boolean isDirectory) {
+        this.id = id;
+        this.path = path;
+        this.filename = filename;
+        this.extension = extension;
+        this.isDirectory = isDirectory;
+    }
 
     public String getPath() {
         return path;
@@ -56,27 +77,6 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     public void setExtension(String extension) {
         this.extension = extension;
     }
-
-    public Metadata() {
-
-    }
-
-    public Metadata(String path, String filename, String extension, LocalDateTime createDate, boolean isDirectory) {
-        this.path = path;
-        this.filename = filename;
-        this.extension = extension;
-        this.createDate = createDate;
-        this.isDirectory = isDirectory;
-    }
-
-    public Metadata(UUID id, String path, String filename, String extension, boolean isDirectory) {
-        this.id = id;
-        this.path = path;
-        this.filename = filename;
-        this.extension = extension;
-        this.isDirectory = isDirectory;
-    }
-
 
     public String getFilename() {
         return filename;
@@ -108,6 +108,11 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     }
 
     @Override
+    public void setHistoryEntities(Collection<? extends AbstractBaseHistoryEntity<UUID>> abstractBaseHistoryEntities) {
+
+    }
+
+    @Override
     public Field getHistoryCollectionField() {
         return null;
     }
@@ -115,11 +120,6 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     @Override
     public Class<? extends AbstractBaseHistoryEntity<UUID>> getTargetHistoryEntityClass() {
         return null;
-    }
-
-    @Override
-    public void setHistoryEntities(Collection<? extends AbstractBaseHistoryEntity<UUID>> abstractBaseHistoryEntities) {
-
     }
 
     @Override
