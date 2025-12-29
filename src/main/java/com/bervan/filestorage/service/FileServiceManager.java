@@ -49,19 +49,20 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
     }
 
-    @Scheduled(fixedDelay = 2000000000)
-    public void synchronizeStorageWithDBAtStartUp() {
-        log.info("Synchronize storage with DB at start up");
-        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
-        log.info("Storage synchronized with DB");
-    }
-
-    @Scheduled(cron = "0 0 0 * * *")
-    public void synchronizeStorageWithDBAtMidnight() {
-        log.info("Synchronize storage with DB at midnight");
-        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
-        log.info("Storage synchronized with DB");
-    }
+//    to be done once owners approach chosen
+//    @Scheduled(fixedDelay = 2000000000)
+//    public void synchronizeStorageWithDBAtStartUp() {
+//        log.info("Synchronize storage with DB at start up");
+//        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+//        log.info("Storage synchronized with DB");
+//    }
+//
+//    @Scheduled(cron = "0 0 0 * * *")
+//    public void synchronizeStorageWithDBAtMidnight() {
+//        log.info("Synchronize storage with DB at midnight");
+//        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+//        log.info("Storage synchronized with DB");
+//    }
 
     public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path) throws IOException {
         if (!file.getOriginalFilename().endsWith(".zip")) {
