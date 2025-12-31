@@ -3,6 +3,7 @@ package com.bervan.filestorage.service;
 import com.bervan.filestorage.model.FileUploadException;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.logging.JsonLogger;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -15,9 +16,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,20 +24,68 @@ import java.util.stream.Stream;
 public class FileDiskStorageService {
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
 
-    @Value("${file.service.storage.folder}")
-    private String FOLDER;
+    @Value("${file.service.storage.folders}")
+    private List<String> FOLDERS;
+
+    @Value("${file.service.folder.automapping}")
+    private String autoMappingStr;
+    private Map<String, List<String>> autoMapping;
+
+    @Value("${file.service.storage.folders.mapping}")
+    private String folderMappingStr;
+    private Map<String, String> folderMapping;
+
     @Value("${global-tmp-dir.file-storage-relative-path}")
     private String GLOBAL_TMP_DIR;
-    private String BACKUP_FILE;
 
     public FileDiskStorageService() {
+
+    }
+
+    @PostConstruct
+    public void init() {
+        if (!FOLDERS.contains("main")) {
+            throw new RuntimeException("Folder 'main' is required");
+        }
+
+        // documents:/Documents/*;/Files/Documents/*,school:/School/*;/Files/School/*
+        autoMapping = new HashMap<>();
+
+        String[] folderMappings = autoMappingStr.split(",");
+        for (String folderMapping : folderMappings) {
+            String[] parts = folderMapping.split(":", 2);
+            if (parts.length == 2) {
+                String folderName = parts[0].trim();
+                String[] patterns = parts[1].split(";");
+
+                List<String> patternList = Arrays.stream(patterns)
+                        .map(String::trim)
+                        .collect(Collectors.toList());
+
+                autoMapping.put(folderName, patternList);
+            }
+        }
+        //example file.service.storage.folders.mapping=main:./storage/main,backup:./storage/backup,movies:/mnt/movies,temp:./tmp
+        folderMapping = new HashMap<>();
+        String[] folderMappings2 = folderMappingStr.split(",");
+        for (String folderMapping2 : folderMappings2) {
+            String[] parts = folderMapping2.split(":", 2);
+            if (parts.length == 2) {
+                String folderName = parts[0].trim();
+                String path = parts[1].trim();
+                folderMapping.put(folderName, path);
+            }
+        }
+
     }
 
     public String store(MultipartFile file, String path, String fileName) {
+        String FOLDER = getStorageFolderPath(path);
         log.info("Saving on a disk: " + fileName + " in path: " + path);
 
+        //????
         path = path.replaceAll(FOLDER, "");
-
+        // ???
         if (!path.isBlank()) {
             if (!path.startsWith(File.separator)) {
                 path = File.separator + path;
@@ -63,6 +110,8 @@ public class FileDiskStorageService {
     }
 
     public String storeTmp(MultipartFile file, String fileName) {
+        String FOLDER = getStorageFolderPath(GLOBAL_TMP_DIR);
+
         log.info("Saving tmp " + fileName);
 
         fileName = getFileName(GLOBAL_TMP_DIR, fileName);
@@ -83,13 +132,60 @@ public class FileDiskStorageService {
 
     public List<Metadata> getAllFilesInFolder() {
         List<Metadata> fileInfos = new ArrayList<>();
-        try {
-            scanDirectory(new File(FOLDER), fileInfos);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        for (String FOLDER : FOLDERS) {
+            try {
+                scanDirectory(new File(FOLDER), fileInfos);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
         }
 
         return fileInfos;
+    }
+
+    private String getStorageFolderPath(String path) {
+        String folderNameBasedOnRules = null;
+        for (Map.Entry<String, List<String>> mappings : autoMapping.entrySet()) {
+            String folderName = mappings.getKey();
+            List<String> patterns = mappings.getValue();
+
+            for (String pattern : patterns) {
+                if (matchesPattern(path, pattern)) {
+                    folderNameBasedOnRules = folderName;
+                    break;
+                }
+            }
+        }
+
+        if (folderNameBasedOnRules == null) {
+            folderNameBasedOnRules = "main";
+        }
+
+        return folderMapping.get(folderNameBasedOnRules);
+    }
+
+    private boolean matchesPattern(String path, String pattern) {
+        // (ex. "/Movies/*")
+        if (pattern.endsWith("/*")) {
+            String basePattern = pattern.substring(0, pattern.length() - 2);
+            return path.startsWith(basePattern);
+        }
+
+        // (ex. "*/Videos")
+        if (pattern.startsWith("*/")) {
+            String endPattern = pattern.substring(2);
+            return path.endsWith(endPattern);
+        }
+
+        // (ex. "/Movies/*/HD")
+        if (pattern.contains("*")) {
+            String regex = pattern.replace("*", ".*");
+            return path.matches(regex);
+        }
+
+        // exact match
+        return path.equals(pattern);
     }
 
     private void scanDirectory(File fileParent, List<Metadata> fileInfos) throws IOException {
@@ -105,10 +201,12 @@ public class FileDiskStorageService {
                 LocalDateTime creationDateTime = LocalDateTime.ofInstant(creationTime.toInstant(), ZoneId.systemDefault());
 
                 if (file.isDirectory()) {
-                    fileInfos.add(new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file), file.getName(), null, creationDateTime, true));
+                    Metadata metadata = new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file), file.getName(), null, creationDateTime, true);
+                    fileInfos.add(metadata);
                     scanDirectory(file, fileInfos);
                 } else {
-                    fileInfos.add(new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file), file.getName(), FilenameUtils.getExtension(file.getName()), creationDateTime, false));
+                    Metadata metadata = new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file), file.getName(), FilenameUtils.getExtension(file.getName()), creationDateTime, false);
+                    fileInfos.add(metadata);
                 }
             }
         }
@@ -116,6 +214,7 @@ public class FileDiskStorageService {
 
     private String getAbsolutePathThatHaveToBeSavedInMetadata(File file) {
         String absolutePath = file.getAbsolutePath();
+        String FOLDER = getStorageFolderPath(absolutePath);
         absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
         if (!absolutePath.startsWith(File.separator)) {
             absolutePath = File.separator + absolutePath;
@@ -139,6 +238,13 @@ public class FileDiskStorageService {
     }
 
     private String getDestination(String filename, String path) {
+        String FOLDER;
+        if (path == null || path.isBlank()) {
+            FOLDER = getStorageFolderPath(filename);
+        } else {
+            FOLDER = getStorageFolderPath(path);
+        }
+
         return FOLDER + path + File.separator + filename;
     }
 
@@ -160,6 +266,7 @@ public class FileDiskStorageService {
     }
 
     public void delete(String path, String filename) {
+        String FOLDER = getStorageFolderPath(path);
         path = FOLDER + File.separator + path.replaceAll(FOLDER, "");
         Path targetPath = Paths.get(path, filename);
         try {
@@ -188,31 +295,44 @@ public class FileDiskStorageService {
     }
 
 
-    public Path doBackup() throws IOException, InterruptedException {
-        BACKUP_FILE = FOLDER + "backup.zip";
-        String[] env = {"PATH=/bin:/usr/bin/"};
-        deleteOldBackup(env);
-        createZip(env);
+//    public Path doBackup() throws IOException, InterruptedException {
+//        String BACKUP_FOLDER = "";
+//        if (!FOLDERS.contains("backup")) {
+//            BACKUP_FOLDER = folderMapping.get("main");
+//        } else {
+//            BACKUP_FOLDER = folderMapping.get("backup");
+//        }
+//
+//        if (!BACKUP_FOLDER.endsWith(File.separator)) {
+//            BACKUP_FOLDER += File.separator;
+//        }
+//
+//        String BACKUP_FILE = BACKUP_FOLDER + "backup.zip";
+//        String[] env = {"PATH=/bin:/usr/bin/"};
+//        deleteOldBackup(env, BACKUP_FILE);
+//        createZip(env, BACKUP_FOLDER, BACKUP_FILE);
+//
+//        File file = new File(BACKUP_FILE);
+//
+//        return Paths.get(getAbsolutePathThatHaveToBeSavedInMetadata(file, BACKUP_FOLDER));
+//    }
 
-        File file = new File(BACKUP_FILE);
-
-        return Paths.get(getAbsolutePathThatHaveToBeSavedInMetadata(file));
-    }
-
-    private void deleteOldBackup(String[] env) throws IOException, InterruptedException {
-        String cmd = "rm " + BACKUP_FILE;
-        Process process = Runtime.getRuntime().exec(cmd, env);
-        process.waitFor();
-    }
-
-    private void createZip(String[] env) throws IOException, InterruptedException {
-        Thread.sleep(15000);
-        String cmd = "zip -r " + BACKUP_FILE + " " + FOLDER;
-        Process process = Runtime.getRuntime().exec(cmd, env);
-        process.waitFor();
-    }
+//    private void deleteOldBackup(String[] env, String BACKUP_FILE) throws IOException, InterruptedException {
+//        String cmd = "rm " + BACKUP_FILE;
+//        Process process = Runtime.getRuntime().exec(cmd, env);
+//        process.waitFor();
+//    }
+//
+//    private void createZip(String[] env, String STORAGE_FOLDER, String BACKUP_FILE) throws IOException, InterruptedException {
+//        String FOLDER = getStorageFolderPath(STORAGE_FOLDER);
+//        Thread.sleep(15000);
+//        String cmd = "zip -r " + BACKUP_FILE + " " + FOLDER;
+//        Process process = Runtime.getRuntime().exec(cmd, env);
+//        process.waitFor();
+//    }
 
     public void createEmptyDirectory(String path, String value) {
+        String FOLDER = getStorageFolderPath(path);
         path = path.replaceAll(FOLDER, "");
         File directory = new File(FOLDER + path + File.separator + value);
         directory.mkdirs();

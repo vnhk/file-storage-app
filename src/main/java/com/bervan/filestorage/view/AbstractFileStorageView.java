@@ -31,7 +31,6 @@ import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.QueryParameters;
 import io.micrometer.common.util.StringUtils;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,7 +51,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
     private final H4 pathInfoComponent = new H4();
     private String path = "/";
-    @Value("${file.service.storage.folder}")
+    @Value("${file.service.storage.folder.main}")
     private String FOLDER;
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB, AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {

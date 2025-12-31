@@ -15,7 +15,6 @@ import com.bervan.ieentities.ExcelIEEntity;
 import com.bervan.logging.JsonLogger;
 import jakarta.transaction.Transactional;
 import org.apache.commons.io.FilenameUtils;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.prepost.PostFilter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,13 +34,15 @@ import java.util.zip.ZipInputStream;
 
 @Service
 public class FileServiceManager extends BaseService<UUID, Metadata> {
+    protected final FileDBStorageService fileDBStorageService;
+    protected final FileDiskStorageService fileDiskStorageService;
+    protected final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
+    protected final SearchService searchService;
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
-    private final FileDBStorageService fileDBStorageService;
-    private final FileDiskStorageService fileDiskStorageService;
-    private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
-    private final SearchService searchService;
 
-    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService, FileDiskStorageService fileDiskStorageService, MetadataRepository repository, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
+    public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService,
+                              FileDiskStorageService fileDiskStorageService, MetadataRepository repository,
+                              LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
         super(repository, searchService);
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
@@ -206,9 +207,9 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         }
     }
 
-    public Path doBackup() throws IOException, InterruptedException {
-        return fileDiskStorageService.doBackup();
-    }
+//    public Path doBackup() throws IOException, InterruptedException {
+//        return fileDiskStorageService.doBackup();
+//    }
 
     @Override
     public void save(List<Metadata> data) {
@@ -262,6 +263,10 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         } catch (Exception e) {
             throw new FileDownloadException("Cannot get file: " + uuid);
         }
+    }
+
+    public Path getFile(Metadata metadata) {
+        return fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
     }
 
     public byte[] readFile(Metadata metadata) {
