@@ -60,7 +60,7 @@ public class FileDiskStorageService {
                 String folderName = parts[0].trim();
                 String[] patterns = parts[1].split(";");
 
-                log.info("Folder mapping: " + folderName + " -> " + Arrays.toString(patterns));
+                log.info("Auto mapping: " + folderName + " -> " + Arrays.toString(patterns));
 
                 List<String> patternList = Arrays.stream(patterns)
                         .map(String::trim)
