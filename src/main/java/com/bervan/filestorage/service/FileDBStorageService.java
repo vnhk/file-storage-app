@@ -38,9 +38,9 @@ public class FileDBStorageService {
 
     public void delete(Metadata metadata) {
         String path = metadata.getPath() + File.separator + metadata.getFilename();
-        log.info("Deleting file: {}", path);
+        log.info("Deleting metadata file: {}", path);
         if (metadata.isDirectory()) {
-            log.info("Deleting directory: {}", path);
+            log.info("Deleting metadata directory: {}", path);
             Set<Metadata> metadatas = loadByPath(path);
             for (Metadata m : metadatas) {
                 delete(m);
