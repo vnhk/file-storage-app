@@ -10,6 +10,7 @@ import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB;
 import com.bervan.filestorage.view.fileviever.FileViewerView;
+import com.bervan.logging.JsonLogger;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -40,11 +41,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-import com.bervan.logging.JsonLogger;
-
 public abstract class AbstractFileStorageView extends AbstractBervanTableView<UUID, Metadata> {
-    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     public static final String ROUTE_NAME = "file-storage-app/files";
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileServiceManager fileServiceManager;
     private final String maxFileSize;
     private final AsyncTaskService asyncTaskService;
@@ -81,14 +80,32 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                         loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
                         asyncTaskService.setFinished(asyncTask, "Synchronization for all files finished successfully.");
                     } catch (Exception e) {
+                        log.error("Synchronization for all files failed.", e);
                         asyncTaskService.setFailed(asyncTask, e.getMessage());
                     }
                 }).start();
             } catch (Exception e) {
+                log.error("Synchronization for all files failed.", e);
                 showErrorNotification(e.getMessage());
             }
         });
 
+        Button createDirectory = getCreateDirectory();
+
+        addButton.setText("Upload file");
+        addButton.addClassName("option-button");
+
+        HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton, createDirectory);
+        contentLayout.addComponentAtIndex(0, pathInfoComponent);
+        contentLayout.addComponentAtIndex(0, new Hr());
+        contentLayout.addComponentAtIndex(0, buttons);
+        contentLayout.addComponentAtIndex(0, new Hr());
+        contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
+
+        paginationBar.setVisible(false);
+    }
+
+    private Button getCreateDirectory() {
         Button createDirectory = new BervanButton("New Folder");
 
         createDirectory.addClickListener(buttonClickEvent -> {
@@ -135,18 +152,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
             dialog.open();
         });
-
-        addButton.setText("Upload file");
-        addButton.addClassName("option-button");
-
-        HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton, createDirectory);
-        contentLayout.addComponentAtIndex(0, pathInfoComponent);
-        contentLayout.addComponentAtIndex(0, new Hr());
-        contentLayout.addComponentAtIndex(0, buttons);
-        contentLayout.addComponentAtIndex(0, new Hr());
-        contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
-
-        paginationBar.setVisible(false);
+        return createDirectory;
     }
 
     @Override
