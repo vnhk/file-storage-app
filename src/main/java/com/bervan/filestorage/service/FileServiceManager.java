@@ -270,11 +270,12 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     }
 
     public byte[] readFile(Metadata metadata) {
+        Path file = fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
         try {
-            Path file = fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
             FileInputStream fis = new FileInputStream(file.toFile());
             return fis.readAllBytes();
         } catch (Exception e) {
+            log.error("Cannot get file: " + metadata.getId() + ", path = " + file.toString(), e);
             throw new FileDownloadException("Cannot get file: " + metadata.getId());
         }
     }
