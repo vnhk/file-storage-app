@@ -48,6 +48,8 @@ public class FileDiskStorageService {
             throw new RuntimeException("Folder 'main' is required");
         }
 
+        log.info("Folders: " + FOLDERS);
+
         // documents:/Documents/*;/Files/Documents/*,school:/School/*;/Files/School/*
         autoMapping = new HashMap<>();
 
@@ -57,6 +59,8 @@ public class FileDiskStorageService {
             if (parts.length == 2) {
                 String folderName = parts[0].trim();
                 String[] patterns = parts[1].split(";");
+
+                log.info("Folder mapping: " + folderName + " -> " + Arrays.toString(patterns));
 
                 List<String> patternList = Arrays.stream(patterns)
                         .map(String::trim)
@@ -74,6 +78,7 @@ public class FileDiskStorageService {
                 String folderName = parts[0].trim();
                 String path = parts[1].trim();
                 folderMapping.put(folderName, path);
+                log.info("Folder mapping: " + folderName + " -> " + path);
             }
         }
 
