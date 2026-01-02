@@ -1,7 +1,6 @@
 package com.bervan.filestorage.view.fileviever;
 
 import com.bervan.common.view.AbstractPageView;
-import com.bervan.filestorage.model.Metadata;
 import com.bervan.logging.JsonLogger;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -14,6 +13,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,28 +32,27 @@ public class FileViewerView extends AbstractPageView {
     private boolean fileExists = false;
     private boolean isFileBig = false;
 
-    public FileViewerView(Metadata metadata, String fileServicePath) {
+    public FileViewerView(Path path) {
         removeClassName("bervan-page");
-        final String finalPath = fileServicePath + File.separator + metadata.getPath() + File.separator + metadata.getFilename();
         try {
-            Optional<FileViewer> fileViewer = fileViewers.stream().filter(e -> e.supports(finalPath))
+            Optional<FileViewer> fileViewer = fileViewers.stream().filter(e -> e.supports(path.toString()))
                     .findFirst();
 
-            try (InputStream __ = new FileInputStream(finalPath)) {
+            try (InputStream __ = new FileInputStream(path.toFile())) {
                 fileExists = true;
             } catch (Exception e) {
                 fileExists = false;
             }
 
-            log.debug("Loading file view for file: " + finalPath);
+            log.debug("Loading file view for file: " + path);
 
             if (fileViewer.isPresent() && fileExists) {
                 FileViewer fileViewerProcessor = fileViewer.get();
 
-                isFileBig = fileViewerProcessor.isFileBig(finalPath);
+                isFileBig = fileViewerProcessor.isFileBig(path.toString());
 
                 if (!isFileBig) {
-                    add(fileViewerProcessor.buildView(finalPath));
+                    add(fileViewerProcessor.buildView(path.toString()));
                 }
 
                 Button openFileInWindowButton = new Button("Open file");
@@ -65,7 +64,7 @@ public class FileViewerView extends AbstractPageView {
                     VerticalLayout filePreviewLayout = new VerticalLayout();
                     HorizontalLayout filePreviewHeaderLayout = getDialogTopBarLayout(filePreview);
 
-                    filePreviewLayout.add(filePreviewHeaderLayout, fileViewerProcessor.buildView(finalPath));
+                    filePreviewLayout.add(filePreviewHeaderLayout, fileViewerProcessor.buildView(path.toString()));
                     filePreview.add(filePreviewLayout);
 
                     filePreview.open();
@@ -74,7 +73,7 @@ public class FileViewerView extends AbstractPageView {
                 add(openFileInWindowButton);
                 isFileSupportView = true;
             } else {
-                log.debug("FileViewer not found for: " + finalPath);
+                log.debug("FileViewer not found for: " + path);
             }
 
         } catch (Exception e) {

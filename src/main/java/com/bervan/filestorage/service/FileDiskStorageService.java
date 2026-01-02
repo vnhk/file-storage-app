@@ -100,6 +100,9 @@ public class FileDiskStorageService {
         fileName = getFileName(path, fileName);
 
         try {
+            if (path.endsWith(File.separator)) {
+                path = path.substring(0, path.length() - 1);
+            }
             String destination = FOLDER + path + File.separator + fileName;
             log.info("Saving on a disk " + fileName + " in destination: " + destination);
             File fileTmp = new File(destination);
@@ -225,6 +228,10 @@ public class FileDiskStorageService {
         absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
         if (!absolutePath.startsWith(File.separator)) {
             absolutePath = File.separator + absolutePath;
+        }
+
+        if (!absolutePath.endsWith(File.separator)) {
+            absolutePath = absolutePath + File.separator;
         }
         return absolutePath;
     }

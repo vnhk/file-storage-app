@@ -33,7 +33,7 @@ public class FileDBStorageService {
     }
 
     public Metadata store(Metadata metadata) {
-        return fileEntityRepository.save(metadata);
+        return store(LocalDateTime.now(), metadata.getPath(), metadata.getFilename(), metadata.getDescription(), metadata.getExtension(), metadata.isDirectory());
     }
 
     public void delete(Metadata metadata) {

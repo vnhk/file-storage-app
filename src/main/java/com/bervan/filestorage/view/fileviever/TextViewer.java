@@ -32,7 +32,7 @@ public class TextViewer implements FileViewer {
     }
 
     private String getMimeType(Path path) {
-        String name = path.getFileName().toString().toLowerCase();
+        String name = path.toString().toLowerCase();
 
         if (name.endsWith(".json")) return "application/json";
         if (name.endsWith(".txt")) return "text/plain";
