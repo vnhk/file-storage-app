@@ -6,12 +6,13 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Base64;
 
 public class TextViewer implements FileViewer {
     @Override
     public boolean supports(String path) {
-        return getTextType(path) != null;
+        return getMimeType(Path.of(path)) != null;
     }
 
     @Override
@@ -19,7 +20,8 @@ public class TextViewer implements FileViewer {
         try {
             File file = new File(path);
             byte[] bytes = FileUtils.readFileToByteArray(file);
-            String src = "data:text/" + getTextType(path) + ";base64," + Base64.getEncoder().encodeToString(bytes);
+            String mime = getMimeType(Path.of(path));
+            String src = "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
             IFrame frame = new IFrame(src);
             frame.setWidth("100%");
             frame.setHeight("600px");
@@ -29,12 +31,16 @@ public class TextViewer implements FileViewer {
         }
     }
 
-    private String getTextType(String path) {
-        if (path.endsWith("txt")) {
-            return "plain";
-        } else if (path.endsWith("csv")) {
-            return "csv";
-        }
+    private String getMimeType(Path path) {
+        String name = path.getFileName().toString().toLowerCase();
+
+        if (name.endsWith(".json")) return "application/json";
+        if (name.endsWith(".txt")) return "text/plain";
+        if (name.endsWith(".html")) return "text/html";
+        if (name.endsWith(".css")) return "text/css";
+        if (name.endsWith(".js")) return "application/javascript";
+        if (name.endsWith(".xml")) return "application/xml";
+        if (name.endsWith(".csv")) return "text/csv";
 
         return null;
     }
