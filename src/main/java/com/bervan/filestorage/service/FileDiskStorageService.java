@@ -198,6 +198,7 @@ public class FileDiskStorageService {
     }
 
     private void scanDirectory(File fileParent, List<Metadata> fileInfos, final String PATH_MAPPING) throws IOException {
+        Set<String> addedMetadata = new HashSet<>();
         try (Stream<Path> paths = Files.walk(Paths.get(fileParent.getAbsolutePath()))) {
             Set<Path> collect = paths.filter(path -> !path.toAbsolutePath()
                             .equals(fileParent.toPath().toAbsolutePath()))
@@ -207,14 +208,24 @@ public class FileDiskStorageService {
                 BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
 
                 FileTime creationTime = attr.creationTime();
+                if (creationTime == null) {
+                    creationTime = attr.lastModifiedTime();
+                }
                 LocalDateTime creationDateTime = LocalDateTime.ofInstant(creationTime.toInstant(), ZoneId.systemDefault());
 
+                String absolutePathThatHaveToBeSavedInMetadata = getAbsolutePathThatHaveToBeSavedInMetadata(file, PATH_MAPPING);
+                String key = absolutePathThatHaveToBeSavedInMetadata + "|" + file.getName();
+                if (addedMetadata.contains(key)) {
+                    continue;
+                }
+                addedMetadata.add(key);
+
+                Metadata metadata;
                 if (file.isDirectory()) {
-                    Metadata metadata = new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file, PATH_MAPPING), file.getName(), null, creationDateTime, true);
+                    metadata = new Metadata(absolutePathThatHaveToBeSavedInMetadata, file.getName(), null, creationDateTime, true);
                     fileInfos.add(metadata);
-                    scanDirectory(file, fileInfos, PATH_MAPPING);
                 } else {
-                    Metadata metadata = new Metadata(getAbsolutePathThatHaveToBeSavedInMetadata(file, PATH_MAPPING), file.getName(), FilenameUtils.getExtension(file.getName()), creationDateTime, false);
+                    metadata = new Metadata(absolutePathThatHaveToBeSavedInMetadata, file.getName(), FilenameUtils.getExtension(file.getName()), creationDateTime, false);
                     fileInfos.add(metadata);
                 }
             }
