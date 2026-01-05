@@ -1,5 +1,6 @@
 package com.bervan.filestorage.service;
 
+import com.bervan.common.user.UserRepository;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.logging.JsonLogger;
 import org.springframework.stereotype.Service;
@@ -12,11 +13,22 @@ public class LoadStorageAndIntegrateWithDB {
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
+    private final UserRepository userRepository;
 
-    public LoadStorageAndIntegrateWithDB(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService) {
+    public LoadStorageAndIntegrateWithDB(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService, UserRepository userRepository) {
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
+        this.userRepository = userRepository;
     }
+
+//    @Scheduled(cron = "0 0 0/1 * * *")
+//    public void synchronizeStorageCron() {
+//        List<User> all = userRepository.findAll();
+//        SecurityContext securityContext = SecurityContextHolder.getContext();
+//        securityContext.setAuthentication();
+//        synchronizeStorageWithDB();
+//
+//    }
 
     public void synchronizeStorageWithDB() {
         List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder();
@@ -51,7 +63,11 @@ public class LoadStorageAndIntegrateWithDB {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
             log.info("Batch delete files in folder: " + batch.size());
-            fileDBStorageService.deleteBatch(batch);
+            try {
+                fileDBStorageService.deleteBatch(batch);
+            } catch (Exception e) {
+                log.error("Error while delete files in folder: " + batch, e);
+            }
         }
     }
 
@@ -60,7 +76,11 @@ public class LoadStorageAndIntegrateWithDB {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
             log.info("Batch insert files in folder: " + batch.size());
-            fileDBStorageService.insertBatch(batch);
+            try {
+                fileDBStorageService.insertBatch(batch);
+            } catch (Exception e) {
+                log.error("Error while insert files in folder: " + batch, e);
+            }
         }
     }
 }
