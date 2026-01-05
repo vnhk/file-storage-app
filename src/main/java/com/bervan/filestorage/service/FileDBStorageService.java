@@ -34,7 +34,12 @@ public class FileDBStorageService {
     }
 
     public Metadata store(Metadata metadata) {
-        return store(LocalDateTime.now(), metadata.getPath(), metadata.getFilename(), metadata.getDescription(), metadata.getExtension(), metadata.isDirectory());
+        try {
+            return store(LocalDateTime.now(), metadata.getPath(), metadata.getFilename(), metadata.getDescription(), metadata.getExtension(), metadata.isDirectory());
+        } catch (Exception e) {
+            log.error("File is not saved:", e.getMessage());
+        }
+        return null;
     }
 
     public void delete(Metadata metadata) {

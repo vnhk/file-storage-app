@@ -5,8 +5,7 @@ import com.bervan.filestorage.model.Metadata;
 import com.bervan.logging.JsonLogger;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class LoadStorageAndIntegrateWithDB {
@@ -39,20 +38,36 @@ public class LoadStorageAndIntegrateWithDB {
             throw new RuntimeException("Incorrect path amount of files: " + count);
         }
 
-        Set<Metadata> dbFiles = fileDBStorageService.load();
+        Map<String, Metadata> allFilesInFolderMap = new HashMap<>();
+        for (Metadata metadata : allFilesInFolder) {
+            String key = metadata.getPath() + "|" + metadata.getFilename(); ///ab + c.txt  ==  /a + bc.txt
+            if (allFilesInFolderMap.containsKey(key)) {
+                log.error("Duplicate file path: " + key);
+                continue;
+            }
+            allFilesInFolderMap.put(key, metadata);
+        }
 
-        List<Metadata> toDelete = dbFiles.stream()
-                .filter(metadata -> allFilesInFolder.stream().noneMatch(m ->
-                        m.getPath().equals(metadata.getPath()) &&
-                                m.getFilename().equals(metadata.getFilename())))
-                .toList();
+        Set<Metadata> dbFiles = fileDBStorageService.load();
+        Set<String> filesPresentInDBAndFolder = new HashSet<>();
+
+        List<Metadata> toDelete = new ArrayList<>();
+        for (Metadata dbFile : dbFiles) {
+            String key = dbFile.getPath() + "|" + dbFile.getFilename();
+            if (allFilesInFolderMap.containsKey(key)) {
+                filesPresentInDBAndFolder.add(key);
+            } else {
+                toDelete.add(dbFile);
+            }
+        }
 
         log.info("Delete all files in folder: " + toDelete.size());
         batchDelete(toDelete, 100);
 
-        List<Metadata> toInsert = allFilesInFolder.stream()
-                .filter(metadata -> fileDBStorageService.loadByPathAndFilename(metadata.getPath(), metadata.getFilename()).isEmpty())
-                .toList();
+        allFilesInFolderMap.entrySet()
+                .removeIf(entry -> filesPresentInDBAndFolder.contains(entry.getKey()));
+
+        List<Metadata> toInsert = allFilesInFolderMap.values().stream().toList();
 
         log.info("Insert all files in folder: " + toInsert.size());
         batchInsert(toInsert, 100);
