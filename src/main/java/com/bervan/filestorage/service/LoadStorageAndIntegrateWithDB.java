@@ -47,19 +47,19 @@ public class LoadStorageAndIntegrateWithDB {
     }
 
     private void batchDelete(List<Metadata> list, int batchSize) {
-        log.info("Batch delete files in folder: " + list.size());
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
+            log.info("Batch delete files in folder: " + batch.size());
             fileDBStorageService.deleteBatch(batch);
         }
     }
 
     private void batchInsert(List<Metadata> list, int batchSize) {
-        log.info("Batch insert files in folder: " + list.size());
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
+            log.info("Batch insert files in folder: " + batch.size());
             fileDBStorageService.insertBatch(batch);
         }
     }
