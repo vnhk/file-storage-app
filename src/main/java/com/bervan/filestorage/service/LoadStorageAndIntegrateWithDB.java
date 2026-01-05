@@ -2,7 +2,6 @@ package com.bervan.filestorage.service;
 
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.logging.JsonLogger;
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -36,16 +35,19 @@ public class LoadStorageAndIntegrateWithDB {
                                 m.getFilename().equals(metadata.getFilename())))
                 .toList();
 
+        log.info("Delete all files in folder: " + toDelete.size());
         batchDelete(toDelete, 1000);
 
         List<Metadata> toInsert = allFilesInFolder.stream()
                 .filter(metadata -> fileDBStorageService.loadByPathAndFilename(metadata.getPath(), metadata.getFilename()).isEmpty())
                 .toList();
 
+        log.info("Insert all files in folder: " + toInsert.size());
         batchInsert(toInsert, 1000);
     }
 
     private void batchDelete(List<Metadata> list, int batchSize) {
+        log.info("Batch delete files in folder: " + list.size());
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
@@ -54,6 +56,7 @@ public class LoadStorageAndIntegrateWithDB {
     }
 
     private void batchInsert(List<Metadata> list, int batchSize) {
+        log.info("Batch insert files in folder: " + list.size());
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
