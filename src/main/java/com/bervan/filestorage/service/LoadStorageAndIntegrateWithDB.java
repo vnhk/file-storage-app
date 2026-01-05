@@ -49,7 +49,7 @@ public class LoadStorageAndIntegrateWithDB {
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
-            deleteBatch(batch);
+            fileDBStorageService.deleteBatch(batch);
         }
     }
 
@@ -57,17 +57,7 @@ public class LoadStorageAndIntegrateWithDB {
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
-            insertBatch(batch);
+            fileDBStorageService.insertBatch(batch);
         }
-    }
-
-    @Transactional
-    public void deleteBatch(List<Metadata> batch) {
-        batch.forEach(fileDBStorageService::delete); // each batch in one transaction
-    }
-
-    @Transactional
-    public void insertBatch(List<Metadata> batch) {
-        batch.forEach(fileDBStorageService::store); // each batch in one transaction
     }
 }

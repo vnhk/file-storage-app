@@ -3,6 +3,7 @@ package com.bervan.filestorage.service;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.logging.JsonLogger;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -86,5 +87,15 @@ public class FileDBStorageService {
             throw new RuntimeException("Unable to update Metadata! Id is null!");
         }
         return fileEntityRepository.save(data);
+    }
+
+    @Transactional
+    public void deleteBatch(List<Metadata> batch) {
+        batch.forEach(this::delete); // each batch in one transaction
+    }
+
+    @Transactional
+    public void insertBatch(List<Metadata> batch) {
+        batch.forEach(this::store); // each batch in one transaction
     }
 }
