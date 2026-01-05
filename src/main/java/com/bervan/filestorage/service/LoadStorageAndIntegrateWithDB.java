@@ -36,14 +36,14 @@ public class LoadStorageAndIntegrateWithDB {
                 .toList();
 
         log.info("Delete all files in folder: " + toDelete.size());
-        batchDelete(toDelete, 1000);
+        batchDelete(toDelete, 100);
 
         List<Metadata> toInsert = allFilesInFolder.stream()
                 .filter(metadata -> fileDBStorageService.loadByPathAndFilename(metadata.getPath(), metadata.getFilename()).isEmpty())
                 .toList();
 
         log.info("Insert all files in folder: " + toInsert.size());
-        batchInsert(toInsert, 1000);
+        batchInsert(toInsert, 100);
     }
 
     private void batchDelete(List<Metadata> list, int batchSize) {
