@@ -19,30 +19,55 @@ public class LoadStorageAndIntegrateWithDB {
         this.fileDiskStorageService = fileDiskStorageService;
     }
 
-    @Transactional
     public void synchronizeStorageWithDB() {
         List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder();
 
         long count = allFilesInFolder.stream().filter(e -> e.getPath().isEmpty()).count();
         if (count != 0) {
-            log.error("Incorrect path amount of files:" + count);
-            throw new RuntimeException("Incorrect path amount of files:" + count);
-        }
-        Set<Metadata> load = fileDBStorageService.load();
-
-        for (Metadata metadata : load) {
-            if (allFilesInFolder.stream().noneMatch(m ->
-                    m.getPath().equals(metadata.getPath())
-                            && m.getFilename().equals(metadata.getFilename())
-            )) {
-                fileDBStorageService.delete(metadata);
-            }
+            log.error("Incorrect path amount of files: " + count);
+            throw new RuntimeException("Incorrect path amount of files: " + count);
         }
 
-        for (Metadata metadata : allFilesInFolder) {
-            if (fileDBStorageService.loadByPathAndFilename(metadata.getPath(), metadata.getFilename()).isEmpty()) {
-                fileDBStorageService.store(metadata);
-            }
+        Set<Metadata> dbFiles = fileDBStorageService.load();
+
+        List<Metadata> toDelete = dbFiles.stream()
+                .filter(metadata -> allFilesInFolder.stream().noneMatch(m ->
+                        m.getPath().equals(metadata.getPath()) &&
+                                m.getFilename().equals(metadata.getFilename())))
+                .toList();
+
+        batchDelete(toDelete, 1000);
+
+        List<Metadata> toInsert = allFilesInFolder.stream()
+                .filter(metadata -> fileDBStorageService.loadByPathAndFilename(metadata.getPath(), metadata.getFilename()).isEmpty())
+                .toList();
+
+        batchInsert(toInsert, 1000);
+    }
+
+    private void batchDelete(List<Metadata> list, int batchSize) {
+        for (int i = 0; i < list.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, list.size());
+            List<Metadata> batch = list.subList(i, end);
+            deleteBatch(batch);
         }
+    }
+
+    private void batchInsert(List<Metadata> list, int batchSize) {
+        for (int i = 0; i < list.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, list.size());
+            List<Metadata> batch = list.subList(i, end);
+            insertBatch(batch);
+        }
+    }
+
+    @Transactional
+    public void deleteBatch(List<Metadata> batch) {
+        batch.forEach(fileDBStorageService::delete); // each batch in one transaction
+    }
+
+    @Transactional
+    public void insertBatch(List<Metadata> batch) {
+        batch.forEach(fileDBStorageService::store); // each batch in one transaction
     }
 }
