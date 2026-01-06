@@ -134,7 +134,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                     return true;
                 }
 
-                return matchesAnyColumn(item, filterText.toLowerCase());
+                return matchesAnyColumn(item, filterText.toLowerCase(), List.of("filename"));
             });
         });
         return searchField;
