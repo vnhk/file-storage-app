@@ -28,8 +28,10 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.QueryParameters;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.security.core.context.SecurityContext;
@@ -62,8 +64,17 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     }
 
     private void render() {
+        searchBarVisible = false;
         renderCommonComponents();
         contentLayout.remove(addButton);
+        TextField searchField = getTextField();
+        int gridIndex = contentLayout.indexOf(grid);
+
+        if (gridIndex >= 0) {
+            contentLayout.addComponentAtIndex(gridIndex, searchField);
+        } else {
+            contentLayout.add(searchField);
+        }
 
         Button synchronizeDBWithStorageFilesButton = new BervanButton("Synchronize All", buttonClickEvent -> {
             try {
@@ -101,6 +112,32 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
 
         paginationBar.setVisible(false);
+    }
+
+    private TextField getTextField() {
+        TextField searchField = new TextField();
+        searchField.setPlaceholder("Search visible items...");
+        searchField.setPrefixComponent(new Icon(VaadinIcon.SEARCH));
+        searchField.addClassName("grid-search-field");
+        searchField.setClearButtonVisible(true);
+        searchField.setValueChangeMode(ValueChangeMode.LAZY);
+        searchField.setWidthFull();
+        searchField.setValueChangeTimeout(300);
+        searchField.addValueChangeListener(e -> {
+            String filterText = e.getValue();
+
+            @SuppressWarnings("unchecked")
+            ListDataProvider<Metadata> dataProvider = (ListDataProvider<Metadata>) grid.getDataProvider();
+
+            dataProvider.setFilter(item -> {
+                if (filterText == null || filterText.isEmpty()) {
+                    return true;
+                }
+
+                return matchesAnyColumn(item, filterText.toLowerCase());
+            });
+        });
+        return searchField;
     }
 
     private Button getCreateDirectory() {
