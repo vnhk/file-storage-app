@@ -24,6 +24,7 @@ public class FileViewerView extends AbstractPageView {
     static {
         fileViewers.add(new PDFViewer());
         fileViewers.add(new PictureViewer());
+        fileViewers.add(new VideoViewer());
         fileViewers.add(new TextViewer());
     }
 
