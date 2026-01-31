@@ -66,7 +66,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private void render() {
         searchBarVisible = false;
         renderCommonComponents();
-        contentLayout.remove(addButton);
+        contentLayout.remove(newItemButton);
         TextField searchField = getTextField();
         int gridIndex = contentLayout.indexOf(grid);
 
@@ -101,10 +101,10 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
         Button createDirectory = getCreateDirectory();
 
-        addButton.setText("Upload file");
-        addButton.addClassName("option-button");
+        newItemButton.setText("Upload file");
+        newItemButton.addClassName("option-button");
 
-        HorizontalLayout buttons = new HorizontalLayout(addButton, synchronizeDBWithStorageFilesButton, createDirectory);
+        HorizontalLayout buttons = new HorizontalLayout(newItemButton, synchronizeDBWithStorageFilesButton, createDirectory);
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
         contentLayout.addComponentAtIndex(0, new Hr());
         contentLayout.addComponentAtIndex(0, buttons);
