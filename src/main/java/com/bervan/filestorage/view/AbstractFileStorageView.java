@@ -66,7 +66,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private void render() {
         searchBarVisible = false;
         renderCommonComponents();
-        contentLayout.remove(newItemButton);
+        newItemButton.setVisible(false);
         TextField searchField = getTextField();
         int gridIndex = contentLayout.indexOf(grid);
 
