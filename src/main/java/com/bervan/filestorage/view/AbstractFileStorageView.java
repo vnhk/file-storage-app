@@ -76,40 +76,10 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             contentLayout.add(searchField);
         }
 
-        Button synchronizeDBWithStorageFilesButton = new BervanButton("Synchronize All", buttonClickEvent -> {
-            try {
-                SecurityContext context = SecurityContextHolder.getContext();
-
-                AsyncTask newAsyncTask = asyncTaskService.createAndStoreAsyncTask();
-                showPrimaryNotification("Synchronization in progress. Please wait... You will be notified.");
-                new Thread(() -> {
-                    SecurityContextHolder.setContext(context);
-                    AsyncTask asyncTask = asyncTaskService.setInProgress(newAsyncTask, "Synchronizing DB with storage files for all files");
-                    try {
-                        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
-                        asyncTaskService.setFinished(asyncTask, "Synchronization for all files finished successfully.");
-                    } catch (Exception e) {
-                        log.error("Synchronization for all files failed.", e);
-                        asyncTaskService.setFailed(asyncTask, e.getMessage());
-                    }
-                }).start();
-            } catch (Exception e) {
-                log.error("Synchronization for all files failed.", e);
-                showErrorNotification(e.getMessage());
-            }
-        });
-
-        Button createDirectory = getCreateDirectory();
-
-        newItemButton.setText("Upload file");
-        newItemButton.addClassName("option-button");
-
-        HorizontalLayout buttons = new HorizontalLayout(newItemButton, synchronizeDBWithStorageFilesButton, createDirectory);
+        // Add path info and max file size at the top
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
         contentLayout.addComponentAtIndex(0, new Hr());
-        contentLayout.addComponentAtIndex(0, buttons);
-        contentLayout.addComponentAtIndex(0, new Hr());
-        contentLayout.addComponentAtIndex(0, new H4("Max File Size: " + maxFileSize));
+        contentLayout.addComponentAtIndex(0, new H5("Max File Size: " + maxFileSize));
 
         paginationBar.setVisible(false);
     }
@@ -140,54 +110,92 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         return searchField;
     }
 
-    private Button getCreateDirectory() {
-        Button createDirectory = new BervanButton("New Folder");
+    @Override
+    protected void customizeTopTableActions(HorizontalLayout topTableActions) {
+        // Synchronize All button with text
+        Button synchronizeButton = new BervanButton("Synchronize");
+        synchronizeButton.addClickListener(buttonClickEvent -> {
+            try {
+                SecurityContext context = SecurityContextHolder.getContext();
 
-        createDirectory.addClickListener(buttonClickEvent -> {
-            Dialog dialog = new Dialog();
-            dialog.setWidth("95vw");
-
-            VerticalLayout dialogLayout = new VerticalLayout();
-
-            HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
-
-            TextField field = new TextField("Directory name:");
-            field.setWidth("50%");
-
-            Button createButton = new BervanButton("Create");
-
-            createButton.addClickListener(createEvent -> {
-                String value = field.getValue();
-                if (!StringUtils.isNotBlank(value)) {
-                    showWarningNotification("Incorrect directory name");
-                    return;
-                }
-
-                if (value.length() > 50) {
-                    showWarningNotification("Incorrect directory name");
-                    return;
-                }
-
-                List<Metadata> directoriesInPath = fileServiceManager.getDirectoriesInPath(path);
-                if (directoriesInPath.stream().anyMatch(e -> e.getFilename().equals(value))) {
-                    showWarningNotification("Directory exists!");
-                    return;
-                }
-
-                Metadata newDirectory = fileServiceManager.createEmptyDirectory(path, value);
-
-                data.add(newDirectory);
-                grid.getDataProvider().refreshAll();
-
-                dialog.close();
-            });
-
-            dialogLayout.add(headerLayout, field, createButton);
-            dialog.add(dialogLayout);
-
-            dialog.open();
+                AsyncTask newAsyncTask = asyncTaskService.createAndStoreAsyncTask();
+                showPrimaryNotification("Synchronization in progress. Please wait... You will be notified.");
+                new Thread(() -> {
+                    SecurityContextHolder.setContext(context);
+                    AsyncTask asyncTask = asyncTaskService.setInProgress(newAsyncTask, "Synchronizing DB with storage files for all files");
+                    try {
+                        loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+                        asyncTaskService.setFinished(asyncTask, "Synchronization for all files finished successfully.");
+                    } catch (Exception e) {
+                        log.error("Synchronization for all files failed.", e);
+                        asyncTaskService.setFailed(asyncTask, e.getMessage());
+                    }
+                }).start();
+            } catch (Exception e) {
+                log.error("Synchronization for all files failed.", e);
+                showErrorNotification(e.getMessage());
+            }
         });
-        return createDirectory;
+
+        // New Folder button with icon
+        Button newFolderButton = new BervanButton(new Icon(VaadinIcon.FOLDER_ADD));
+        newFolderButton.addClassName("bervan-icon-btn");
+        newFolderButton.getElement().setAttribute("title", "New Folder");
+        newFolderButton.addClickListener(buttonClickEvent -> openNewFolderDialog());
+
+        // Upload file button with icon
+        Button uploadButton = new BervanButton(new Icon(VaadinIcon.UPLOAD));
+        uploadButton.addClassName("bervan-icon-btn");
+        uploadButton.addClassName("primary");
+        uploadButton.getElement().setAttribute("title", "Upload File");
+        uploadButton.addClickListener(e -> newItemButtonClick());
+
+        topTableActions.add(synchronizeButton, newFolderButton, uploadButton);
+    }
+
+    private void openNewFolderDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setWidth("95vw");
+
+        VerticalLayout dialogLayout = new VerticalLayout();
+
+        HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
+
+        TextField field = new TextField("Directory name:");
+        field.setWidth("50%");
+
+        Button createButton = new BervanButton("Create");
+
+        createButton.addClickListener(createEvent -> {
+            String value = field.getValue();
+            if (!StringUtils.isNotBlank(value)) {
+                showWarningNotification("Incorrect directory name");
+                return;
+            }
+
+            if (value.length() > 50) {
+                showWarningNotification("Incorrect directory name");
+                return;
+            }
+
+            List<Metadata> directoriesInPath = fileServiceManager.getDirectoriesInPath(path);
+            if (directoriesInPath.stream().anyMatch(e -> e.getFilename().equals(value))) {
+                showWarningNotification("Directory exists!");
+                return;
+            }
+
+            Metadata newDirectory = fileServiceManager.createEmptyDirectory(path, value);
+
+            data.add(newDirectory);
+            grid.getDataProvider().refreshAll();
+
+            dialog.close();
+        });
+
+        dialogLayout.add(headerLayout, field, createButton);
+        dialog.add(dialogLayout);
+
+        dialog.open();
     }
 
     @Override
