@@ -356,6 +356,17 @@ public class FileDiskStorageService {
 //        process.waitFor();
 //    }
 
+    public void renameFile(Path source, String newName) {
+        try {
+            Path target = source.resolveSibling(newName);
+            Files.move(source, target);
+            log.info("Renamed: " + source + " -> " + target);
+        } catch (IOException e) {
+            log.error("Failed to rename: " + source + " to " + newName, e);
+            throw new RuntimeException("Failed to rename file", e);
+        }
+    }
+
     public void overwriteFile(Path filePath, byte[] content) {
         try {
             Files.write(filePath, content);

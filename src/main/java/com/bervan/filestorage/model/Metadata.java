@@ -33,6 +33,7 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     @Size(max = 2000)
     private String description;
     private LocalDateTime modificationDate;
+    private Long fileSize;
 
     public Metadata() {
 
@@ -153,6 +154,14 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Long getFileSize() {
+        return fileSize;
+    }
+
+    public void setFileSize(Long fileSize) {
+        this.fileSize = fileSize;
     }
 
     @Override
