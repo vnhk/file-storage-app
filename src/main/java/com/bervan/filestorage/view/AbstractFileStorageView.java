@@ -14,7 +14,9 @@ import com.bervan.logging.JsonLogger;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.grid.ItemClickEvent;
@@ -41,6 +43,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public abstract class AbstractFileStorageView extends AbstractBervanTableView<UUID, Metadata> {
     public static final String ROUTE_NAME = "file-storage-app/files";
@@ -56,7 +59,6 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                                    AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {
         super(new FileStorageAppPageLayout(ROUTE_NAME), service, bervanViewConfig, Metadata.class);
         this.asyncTaskService = asyncTaskService;
-        super.checkboxesColumnsEnabled = false;
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
@@ -238,6 +240,17 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     @Override
     protected Grid<Metadata> getGrid() {
         Grid<Metadata> grid = new Grid<>(Metadata.class, false);
+
+        // Checkbox column
+        buildSelectAllCheckboxesComponent();
+        grid.addColumn(createCheckboxComponent())
+                .setHeader(selectAllCheckbox)
+                .setKey(CHECKBOX_COLUMN_KEY)
+                .setWidth("10px")
+                .setTextAlign(ColumnTextAlign.CENTER)
+                .setResizable(false)
+                .setSortable(false);
+
         grid.addColumn(new ComponentRenderer<>(metadata -> {
                     if ("../".equals(metadata.getFilename())) {
                         return new Span();
@@ -281,6 +294,138 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         removeUnSortedState(grid, 0);
 
         return grid;
+    }
+
+    @Override
+    protected void addFloatingToolbar() {
+        super.addFloatingToolbar();
+        floatingToolbar.setEditEnabled(false);
+        floatingToolbar.setExportEnabled(false);
+
+        floatingToolbar.addCustomAction("copy", "vaadin:copy", "Copy selected", "primary",
+                e -> handleCopy());
+        floatingToolbar.addCustomAction("move", "vaadin:arrow-right", "Move selected", "info",
+                e -> handleMove());
+    }
+
+    @Override
+    protected void handleFloatingToolbarDelete() {
+        Set<String> selected = getSelectedItemsByCheckbox();
+        if (selected.isEmpty()) return;
+
+        List<Metadata> toDelete = data.stream()
+                .filter(e -> e.getId() != null && selected.contains(e.getId().toString()))
+                .collect(Collectors.toList());
+
+        ConfirmDialog confirmDialog = new ConfirmDialog();
+        confirmDialog.setHeader("Confirm Deletion");
+        confirmDialog.setText("Are you sure you want to delete " + toDelete.size() + " item(s)?");
+        confirmDialog.setConfirmText("Delete");
+        confirmDialog.setConfirmButtonTheme("error primary");
+        confirmDialog.setCancelable(true);
+
+        confirmDialog.addConfirmListener(e -> {
+            SecurityContext context = SecurityContextHolder.getContext();
+            UI ui = UI.getCurrent();
+            AsyncTask newAsyncTask = asyncTaskService.createAndStoreAsyncTask();
+            showPrimaryNotification("Deleting " + toDelete.size() + " item(s)... You will be notified.");
+            clearSelection();
+
+            new Thread(() -> {
+                SecurityContextHolder.setContext(context);
+                AsyncTask asyncTask = asyncTaskService.setInProgress(newAsyncTask,
+                        "Deleting " + toDelete.size() + " items");
+                try {
+                    for (Metadata item : toDelete) {
+                        fileServiceManager.delete(item);
+                    }
+                    asyncTaskService.setFinished(asyncTask,
+                            "Deleted " + toDelete.size() + " item(s) successfully.");
+                    ui.access(() -> {
+                        data.removeAll(toDelete);
+                        grid.getDataProvider().refreshAll();
+                    });
+                } catch (Exception ex) {
+                    log.error("Bulk delete failed.", ex);
+                    asyncTaskService.setFailed(asyncTask, ex.getMessage());
+                }
+            }).start();
+        });
+
+        confirmDialog.open();
+    }
+
+    private void handleCopy() {
+        Set<String> selected = getSelectedItemsByCheckbox();
+        if (selected.isEmpty()) return;
+
+        List<Metadata> toCopy = data.stream()
+                .filter(e -> e.getId() != null && selected.contains(e.getId().toString()))
+                .collect(Collectors.toList());
+
+        FolderPickerDialog dialog = new FolderPickerDialog(fileServiceManager,
+                "Copy " + toCopy.size() + " item(s) to...", destPath -> {
+            SecurityContext context = SecurityContextHolder.getContext();
+            AsyncTask newAsyncTask = asyncTaskService.createAndStoreAsyncTask();
+            showPrimaryNotification("Copying " + toCopy.size() + " item(s)... You will be notified.");
+            clearSelection();
+
+            new Thread(() -> {
+                SecurityContextHolder.setContext(context);
+                AsyncTask asyncTask = asyncTaskService.setInProgress(newAsyncTask,
+                        "Copying " + toCopy.size() + " items to " + destPath);
+                try {
+                    for (Metadata item : toCopy) {
+                        fileServiceManager.copyFileToPath(item, destPath);
+                    }
+                    asyncTaskService.setFinished(asyncTask,
+                            "Copied " + toCopy.size() + " item(s) successfully.");
+                } catch (Exception ex) {
+                    log.error("Bulk copy failed.", ex);
+                    asyncTaskService.setFailed(asyncTask, ex.getMessage());
+                }
+            }).start();
+        });
+        dialog.open();
+    }
+
+    private void handleMove() {
+        Set<String> selected = getSelectedItemsByCheckbox();
+        if (selected.isEmpty()) return;
+
+        List<Metadata> toMove = data.stream()
+                .filter(e -> e.getId() != null && selected.contains(e.getId().toString()))
+                .collect(Collectors.toList());
+
+        FolderPickerDialog dialog = new FolderPickerDialog(fileServiceManager,
+                "Move " + toMove.size() + " item(s) to...", destPath -> {
+            SecurityContext context = SecurityContextHolder.getContext();
+            UI ui = UI.getCurrent();
+            AsyncTask newAsyncTask = asyncTaskService.createAndStoreAsyncTask();
+            showPrimaryNotification("Moving " + toMove.size() + " item(s)... You will be notified.");
+            clearSelection();
+
+            new Thread(() -> {
+                SecurityContextHolder.setContext(context);
+                AsyncTask asyncTask = asyncTaskService.setInProgress(newAsyncTask,
+                        "Moving " + toMove.size() + " items to " + destPath);
+                try {
+                    for (Metadata item : toMove) {
+                        fileServiceManager.moveFileToPath(item, destPath);
+                    }
+                    asyncTaskService.setFinished(asyncTask,
+                            "Moved " + toMove.size() + " item(s) successfully.");
+                    ui.access(() -> {
+                        data.removeAll(toMove);
+                        grid.getDataProvider().refreshAll();
+                    });
+                } catch (Exception ex) {
+                    log.error("Bulk move failed.", ex);
+                    asyncTaskService.setFailed(asyncTask, ex.getMessage());
+                }
+            }).start();
+        });
+        dialog.open();
     }
 
     private Comparator<Metadata> createFilenameComparator() {

@@ -366,6 +366,51 @@ public class FileDiskStorageService {
         }
     }
 
+    public void copyFile(Path source, Path destination) {
+        try {
+            if (Files.isDirectory(source)) {
+                Files.walkFileTree(source, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                        Path targetDir = destination.resolve(source.relativize(dir));
+                        Files.createDirectories(targetDir);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        Files.copy(file, destination.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } else {
+                Files.createDirectories(destination.getParent());
+                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            log.info("Copied: " + source + " -> " + destination);
+        } catch (IOException e) {
+            log.error("Failed to copy: " + source + " -> " + destination, e);
+            throw new RuntimeException("Failed to copy file", e);
+        }
+    }
+
+    public void moveFile(Path source, Path destination) {
+        try {
+            if (Files.isDirectory(source)) {
+                // Copy then delete for cross-filesystem moves
+                copyFile(source, destination);
+                delete(source.getParent().toString(), source.getFileName().toString());
+            } else {
+                Files.createDirectories(destination.getParent());
+                Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            log.info("Moved: " + source + " -> " + destination);
+        } catch (IOException e) {
+            log.error("Failed to move: " + source + " -> " + destination, e);
+            throw new RuntimeException("Failed to move file", e);
+        }
+    }
+
     public void createEmptyDirectory(String path, String value) {
         String FOLDER = getStorageFolderPath(path);
         path = path.replaceAll(FOLDER, "");

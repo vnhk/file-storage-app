@@ -276,6 +276,64 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         updateMetadata(metadata);
     }
 
+    @Transactional
+    public Metadata copyFileToPath(Metadata metadata, String destPath) {
+        Path source = getFile(metadata);
+        String destFullPath = destPath + File.separator + metadata.getFilename();
+        Path destination = fileDiskStorageService.getFile(destFullPath);
+
+        fileDiskStorageService.copyFile(source, destination);
+
+        Metadata newMetadata = fileDBStorageService.store(
+                LocalDateTime.now(), destPath, metadata.getFilename(),
+                metadata.getDescription(), metadata.getExtension(), metadata.isDirectory()
+        );
+
+        if (metadata.isDirectory()) {
+            String srcChildPath = metadata.getPath();
+            if (!srcChildPath.endsWith("/")) srcChildPath += "/";
+            srcChildPath += metadata.getFilename();
+
+            String destChildPath = destPath;
+            if (!destChildPath.endsWith("/")) destChildPath += "/";
+            destChildPath += metadata.getFilename();
+
+            Set<Metadata> children = fileDBStorageService.loadByPath(srcChildPath);
+            for (Metadata child : children) {
+                copyFileToPath(child, destChildPath);
+            }
+        }
+
+        return newMetadata;
+    }
+
+    @Transactional
+    public void moveFileToPath(Metadata metadata, String destPath) {
+        Path source = getFile(metadata);
+        String destFullPath = destPath + File.separator + metadata.getFilename();
+        Path destination = fileDiskStorageService.getFile(destFullPath);
+
+        if (metadata.isDirectory()) {
+            String srcChildPath = metadata.getPath();
+            if (!srcChildPath.endsWith("/")) srcChildPath += "/";
+            srcChildPath += metadata.getFilename();
+
+            String newChildPath = destPath;
+            if (!newChildPath.endsWith("/")) newChildPath += "/";
+            newChildPath += metadata.getFilename();
+
+            Set<Metadata> children = fileDBStorageService.loadByPath(srcChildPath);
+            for (Metadata child : children) {
+                moveFileToPath(child, newChildPath);
+            }
+        }
+
+        fileDiskStorageService.moveFile(source, destination);
+        metadata.setPath(destPath);
+        metadata.setModificationDate(LocalDateTime.now());
+        updateMetadata(metadata);
+    }
+
     public byte[] readFile(Metadata metadata) {
         Path file = fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
         try {
