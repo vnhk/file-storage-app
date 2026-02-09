@@ -381,7 +381,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
         Path file = fileServiceManager.getFile(event.getItem());
 
-        FileViewerView fileViewerView = new FileViewerView(file);
+        FileViewerView fileViewerView = new FileViewerView(file, fileServiceManager, event.getItem());
 
         VerticalLayout dialogLayout = new VerticalLayout();
         HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);

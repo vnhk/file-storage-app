@@ -356,6 +356,16 @@ public class FileDiskStorageService {
 //        process.waitFor();
 //    }
 
+    public void overwriteFile(Path filePath, byte[] content) {
+        try {
+            Files.write(filePath, content);
+            log.info("File overwritten: " + filePath);
+        } catch (IOException e) {
+            log.error("Failed to overwrite file: " + filePath, e);
+            throw new RuntimeException("Failed to overwrite file", e);
+        }
+    }
+
     public void createEmptyDirectory(String path, String value) {
         String FOLDER = getStorageFolderPath(path);
         path = path.replaceAll(FOLDER, "");

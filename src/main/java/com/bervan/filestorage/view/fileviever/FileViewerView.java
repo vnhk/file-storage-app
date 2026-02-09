@@ -1,7 +1,10 @@
 package com.bervan.filestorage.view.fileviever;
 
 import com.bervan.common.view.AbstractPageView;
+import com.bervan.filestorage.model.Metadata;
+import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.logging.JsonLogger;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.icon.Icon;
@@ -10,7 +13,6 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -34,6 +36,10 @@ public class FileViewerView extends AbstractPageView {
     private boolean isFileBig = false;
 
     public FileViewerView(Path path) {
+        this(path, null, null);
+    }
+
+    public FileViewerView(Path path, FileServiceManager fileServiceManager, Metadata metadata) {
         removeClassName("bervan-page");
         try {
             Optional<FileViewer> fileViewer = fileViewers.stream().filter(e -> e.supports(path.toString()))
@@ -52,9 +58,14 @@ public class FileViewerView extends AbstractPageView {
 
                 isFileBig = fileViewerProcessor.isFileBig(path.toString());
 
+                Component viewComponent = null;
                 if (!isFileBig) {
-                    add(fileViewerProcessor.buildView(path.toString()));
+                    viewComponent = fileViewerProcessor.buildView(path.toString());
+                    add(viewComponent);
                 }
+
+                HorizontalLayout buttonsRow = new HorizontalLayout();
+                buttonsRow.setAlignItems(FlexComponent.Alignment.CENTER);
 
                 Button openFileInWindowButton = new Button("Open file");
                 openFileInWindowButton.addClassName("option-button");
@@ -70,8 +81,46 @@ public class FileViewerView extends AbstractPageView {
 
                     filePreview.open();
                 });
+                buttonsRow.add(openFileInWindowButton);
 
-                add(openFileInWindowButton);
+                // Edit button for editable text files < 2MB
+                if (fileViewerProcessor instanceof TextViewer && fileServiceManager != null && metadata != null) {
+                    TextViewer textViewer = (TextViewer) fileViewerProcessor;
+                    if (textViewer.isEditable(path.toString())) {
+                        Button editFileButton = new Button("Edit file");
+                        editFileButton.addClassName("option-button");
+
+                        final Component readOnlyView = viewComponent;
+                        editFileButton.addClickListener(e -> {
+                            if (readOnlyView != null) {
+                                readOnlyView.setVisible(false);
+                            }
+                            editFileButton.setVisible(false);
+
+                            Component editView = textViewer.buildEditView(path.toString(), newContent -> {
+                                fileServiceManager.updateFileContent(metadata, newContent);
+                                showSuccessNotification("File saved!");
+                            });
+                            add(editView);
+
+                            Button cancelBtn = new Button("Cancel editing");
+                            cancelBtn.addClassName("option-button");
+                            cancelBtn.addClickListener(ce -> {
+                                remove(editView);
+                                remove(cancelBtn);
+                                if (readOnlyView != null) {
+                                    readOnlyView.setVisible(true);
+                                }
+                                editFileButton.setVisible(true);
+                            });
+                            add(cancelBtn);
+                        });
+
+                        buttonsRow.add(editFileButton);
+                    }
+                }
+
+                add(buttonsRow);
                 isFileSupportView = true;
             } else {
                 log.debug("FileViewer not found for: " + path);
@@ -98,4 +147,3 @@ public class FileViewerView extends AbstractPageView {
         return headerLayout;
     }
 }
-

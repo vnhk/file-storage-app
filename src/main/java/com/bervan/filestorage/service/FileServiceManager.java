@@ -269,6 +269,13 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         return fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
     }
 
+    public void updateFileContent(Metadata metadata, byte[] newContent) {
+        Path file = getFile(metadata);
+        fileDiskStorageService.overwriteFile(file, newContent);
+        metadata.setModificationDate(LocalDateTime.now());
+        updateMetadata(metadata);
+    }
+
     public byte[] readFile(Metadata metadata) {
         Path file = fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
         try {
