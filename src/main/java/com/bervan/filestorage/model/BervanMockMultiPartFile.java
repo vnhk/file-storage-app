@@ -46,7 +46,7 @@ public class BervanMockMultiPartFile implements MultipartFile {
 
     @Override
     public long getSize() {
-        throw new RuntimeException("Method not supported!");
+        return 0;
     }
 
     @Override

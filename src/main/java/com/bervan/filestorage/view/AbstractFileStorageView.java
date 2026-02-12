@@ -760,7 +760,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     @Override
     protected void newItemButtonClick() {
-        UploadComponent uploadComponent = new FileTableUploadComponent<>(fileServiceManager, path, data, grid);
+        UploadComponent uploadComponent = new FileTableUploadComponent<>(fileServiceManager, asyncTaskService, path, data, grid);
         uploadComponent.open();
     }
 
@@ -769,8 +769,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         protected Grid<Metadata> grid;
         protected List<Metadata> data;
 
-        public FileTableUploadComponent(FileServiceManager fileServiceManager, String path, List<Metadata> data, Grid<Metadata> grid) {
-            super(fileServiceManager, path);
+        public FileTableUploadComponent(FileServiceManager fileServiceManager, AsyncTaskService asyncTaskService,
+                                        String path, List<Metadata> data, Grid<Metadata> grid) {
+            super(fileServiceManager, asyncTaskService, path);
             this.data = data;
             this.grid = grid;
         }
@@ -783,6 +784,11 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
         @Override
         protected void postSavedZipActions(List<Metadata> addedInCurrentPath) {
+            data.addAll(addedInCurrentPath);
+        }
+
+        @Override
+        protected void postSavedFolderActions(List<Metadata> addedInCurrentPath) {
             data.addAll(addedInCurrentPath);
         }
 

@@ -167,7 +167,16 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
         log.info("Saving metadata in database for file: " + filename + " and path: " + path);
         Metadata stored = fileDBStorageService.store(createDate, path, filename, description, FilenameUtils.getExtension(filename), false);
-        stored.setFileSize(file.getSize());
+        long fileSize = file.getSize();
+        if (fileSize <= 0) {
+            try {
+                Path savedFile = fileDiskStorageService.getFile(path + File.separator + filename);
+                fileSize = Files.size(savedFile);
+            } catch (Exception e) {
+                log.warn("Could not determine file size from disk for: " + filename);
+            }
+        }
+        stored.setFileSize(fileSize);
         fileDBStorageService.update(stored);
         createdMetadata.add(stored);
         uploadResponse.setMetadata(createdMetadata);
