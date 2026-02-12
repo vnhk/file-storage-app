@@ -257,12 +257,12 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public Metadata createEmptyDirectory(String path, String value) {
-        log.info("CREATING new empty directory: " + value + " in a path " + path);
+        log.debug("CREATING new empty directory: " + value + " in a path " + path);
 
         Metadata metadata = fileDBStorageService.createEmptyDirectory(path, value);
         fileDiskStorageService.createEmptyDirectory(path, value);
 
-        log.info("CREATED new empty directory: " + value + " in a path " + path);
+        log.debug("CREATED new empty directory: " + value + " in a path " + path);
 
         return metadata;
     }

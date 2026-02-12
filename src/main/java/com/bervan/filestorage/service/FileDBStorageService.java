@@ -26,6 +26,9 @@ public class FileDBStorageService {
         fileEntity.setFilename(originalFilename);
         fileEntity.setUserName("tmpUser");
         fileEntity.setDescription(description);
+        if (!path.endsWith(File.separator)) {
+            path += File.separator;
+        }
         fileEntity.setPath(path);
         fileEntity.setExtension(extension);
         fileEntity.setDirectory(isDirectory);
