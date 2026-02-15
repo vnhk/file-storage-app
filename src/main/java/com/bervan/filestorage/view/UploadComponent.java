@@ -182,7 +182,7 @@ public abstract class UploadComponent extends AbstractPageView {
 
         MultiFileMemoryBuffer multiBuffer = new MultiFileMemoryBuffer();
         Upload folderUpload = new Upload(multiBuffer);
-        folderUpload.setMaxFiles(10000);
+        folderUpload.setMaxFiles(50);
         folderUpload.setAcceptedFileTypes(setSupportedFiles);
 
         // Enable folder selection via webkitdirectory and rename files to include relative paths
