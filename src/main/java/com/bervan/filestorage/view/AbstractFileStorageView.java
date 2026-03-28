@@ -44,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -58,6 +59,10 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private final H4 pathInfoComponent = new H4();
     private String path = "/";
 
+    private List<Metadata> allItemsInPath = new ArrayList<>();
+    private boolean tileViewActive = false;
+    private Div tileContainer;
+
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
                                    AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {
         super(new FileStorageAppPageLayout(ROUTE_NAME), service, bervanViewConfig, Metadata.class);
@@ -70,6 +75,12 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     private void render() {
         searchBarVisible = false;
+
+        // Initialize tile container before renderCommonComponents so it's available in customizeTopTableActions
+        tileContainer = new Div();
+        tileContainer.addClassName("file-tiles-container");
+        tileContainer.setVisible(false);
+
         renderCommonComponents();
         newItemButton.setVisible(false);
         TextField searchField = getTextField();
@@ -81,12 +92,18 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             contentLayout.add(searchField);
         }
 
+        // Add tile container after grid
+        int currentGridIndex = contentLayout.indexOf(grid);
+        if (currentGridIndex >= 0) {
+            contentLayout.addComponentAtIndex(currentGridIndex + 1, tileContainer);
+        } else {
+            contentLayout.add(tileContainer);
+        }
+
         // Add path info and max file size at the top
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
         contentLayout.addComponentAtIndex(0, new Hr());
         contentLayout.addComponentAtIndex(0, new H5("Max File Size: " + maxFileSize));
-
-        paginationBar.setVisible(false);
     }
 
     private TextField getTextField() {
@@ -117,7 +134,31 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     @Override
     protected void customizeTopTableActions(HorizontalLayout topTableActions) {
-        // Synchronize All button with text
+        // View toggle button (list/tile)
+        Button viewToggleButton = new BervanButton(new Icon(VaadinIcon.GRID_SMALL));
+        viewToggleButton.addClassName("bervan-icon-btn");
+        viewToggleButton.getElement().setAttribute("title", "Tile View");
+        viewToggleButton.addClickListener(e -> {
+            tileViewActive = !tileViewActive;
+            if (tileViewActive) {
+                grid.setVisible(false);
+                tileContainer.setVisible(true);
+                contentLayout.setFlexGrow(1, tileContainer);
+                contentLayout.setFlexGrow(0, grid);
+                viewToggleButton.setIcon(new Icon(VaadinIcon.LIST));
+                viewToggleButton.getElement().setAttribute("title", "List View");
+                refreshTileView();
+            } else {
+                grid.setVisible(true);
+                tileContainer.setVisible(false);
+                contentLayout.setFlexGrow(0, tileContainer);
+                contentLayout.setFlexGrow(1, grid);
+                viewToggleButton.setIcon(new Icon(VaadinIcon.GRID_SMALL));
+                viewToggleButton.getElement().setAttribute("title", "Tile View");
+            }
+        });
+
+        // Synchronize All button
         Button synchronizeButton = new BervanButton("Synchronize");
         synchronizeButton.addClickListener(buttonClickEvent -> {
             try {
@@ -155,7 +196,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         uploadButton.getElement().setAttribute("title", "Upload File");
         uploadButton.addClickListener(e -> newItemButtonClick());
 
-        topTableActions.add(synchronizeButton, newFolderButton, uploadButton);
+        topTableActions.add(viewToggleButton, synchronizeButton, newFolderButton, uploadButton);
     }
 
     private void openNewFolderDialog() {
@@ -193,6 +234,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
             data.add(newDirectory);
             grid.getDataProvider().refreshAll();
+            if (tileViewActive) {
+                refreshTileView();
+            }
 
             dialog.close();
         });
@@ -205,6 +249,8 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     @Override
     protected List<Metadata> loadData() {
+        checkboxes.removeAll(checkboxes);
+
         getUI().ifPresent(ui -> {
             QueryParameters queryParameters = ui.getInternals().getActiveViewLocation().getQueryParameters();
             Map<String, String> parameters = queryParameters.getParameters()
@@ -218,7 +264,6 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                     );
             path = parameters.getOrDefault("path", "/");
         });
-
 
         pathInfoComponent.setText("Path: " + path);
         Set<Metadata> metadata = fileServiceManager.loadByPath(path);
@@ -238,21 +283,67 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             }
         }
 
+        // Store all items for pagination
+        allItemsInPath = new ArrayList<>(metadata);
+        allFound = allItemsInPath.size();
+        maxPages = Math.max(1, (int) Math.ceil((double) allFound / pageSize));
+
+        // Clamp page number
+        if (pageNumber >= maxPages) pageNumber = Math.max(0, maxPages - 1);
+        if (pageNumber < 0) pageNumber = 0;
+
+        // Get current page slice
+        int start = pageNumber * pageSize;
+        int end = Math.min(start + pageSize, (int) allFound);
+        List<Metadata> pageItems = new ArrayList<>(allItemsInPath.subList(start, end));
+
+        // Always prepend ../ if not at root
         if (!path.isBlank() && !"/".equals(path)) {
             String previousFolderPath = "";
-
             String[] subFolders = path.split("/");
             if (subFolders.length != 0) {
                 for (int i = 0; i < subFolders.length - 2; i++) {
                     previousFolderPath += subFolders[i] + "/";
                 }
             }
-
             Metadata previousFolderMetadata = new Metadata(previousFolderPath, "../", null, null, true);
-            metadata.add(previousFolderMetadata);
+            pageItems.add(0, previousFolderMetadata);
         }
 
-        return metadata.stream().toList();
+        return pageItems;
+    }
+
+    @Override
+    protected void refreshData() {
+        showGridLoadingProgress(true);
+        SecurityContext context = SecurityContextHolder.getContext();
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        UI current = UI.getCurrent();
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                Thread.currentThread().setContextClassLoader(classLoader);
+                SecurityContextHolder.setContext(context);
+                data.removeAll(data);
+                data.addAll(loadData());
+                current.access(() -> {
+                    reloadItemsCountInfo();
+                    updateCurrentPageText();
+                    showGridLoadingProgress(false);
+                    grid.setItems(data);
+                    grid.getDataProvider().refreshAll();
+                    updateSelectedItemsLabel();
+                    hideFloatingToolbar();
+                    if (tileContainer != null && tileViewActive) {
+                        refreshTileView();
+                    }
+                });
+            } catch (Exception e) {
+                log.error("Error while refreshing file storage data", e);
+            } finally {
+                showGridLoadingProgress(false);
+            }
+        });
     }
 
     @Override
@@ -392,6 +483,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                     ui.access(() -> {
                         data.removeAll(toDelete);
                         grid.getDataProvider().refreshAll();
+                        if (tileViewActive) {
+                            refreshTileView();
+                        }
                     });
                 } catch (Exception ex) {
                     log.error("Bulk delete failed.", ex);
@@ -516,6 +610,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                     ui.access(() -> {
                         data.removeAll(toMove);
                         grid.getDataProvider().refreshAll();
+                        if (tileViewActive) {
+                            refreshTileView();
+                        }
                     });
                 } catch (Exception ex) {
                     log.error("Bulk move failed.", ex);
@@ -593,50 +690,120 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     @Override
     protected void doOnColumnClick(ItemClickEvent<Metadata> event) {
         if (event.getColumn().getKey().equals("actions") && !event.getItem().getFilename().equals("../")) {
-            openDetailsDialog(event);
+            openDetailsDialog(event.getItem());
         } else {
             Metadata item = event.getItem();
             if (item.isDirectory()) {
-                String newPath = "";
-                if (item.getFilename().equals("../")) {
-                    Path actual = Paths.get(path);
-                    Path parentPath = actual.getParent();
-                    newPath = parentPath == null ? "" : parentPath.toString();
-                } else if (item.getPath().isBlank()) {
-                    newPath = item.getFilename();
-                } else {
-                    if (!item.getPath().endsWith("/")) {
-                        newPath = item.getPath() + File.separator + item.getFilename();
-                    } else {
-                        newPath = item.getPath() + item.getFilename();
-                    }
-                }
-
-                if (!newPath.endsWith("/")) {
-                    newPath += "/";
-                }
-
-                UI.getCurrent().navigate(ROUTE_NAME, QueryParameters.of("path", newPath));
-                path = newPath;
-                data.removeAll(data);
-                data.addAll(loadData());
-                grid.getDataProvider().refreshAll();
+                navigateToDirectory(item);
             }
         }
     }
 
-    private void openDetailsDialog(ItemClickEvent<Metadata> event) {
+    private void navigateToDirectory(Metadata item) {
+        String newPath = computeNewPath(item);
+        pageNumber = 0;
+        UI.getCurrent().navigate(ROUTE_NAME, QueryParameters.of("path", newPath));
+        path = newPath;
+        data.removeAll(data);
+        data.addAll(loadData());
+        grid.getDataProvider().refreshAll();
+        reloadItemsCountInfo();
+        updateCurrentPageText();
+        if (tileViewActive) {
+            refreshTileView();
+        }
+    }
+
+    private String computeNewPath(Metadata item) {
+        String newPath;
+        if (item.getFilename().equals("../")) {
+            Path actual = Paths.get(path);
+            Path parentPath = actual.getParent();
+            newPath = parentPath == null ? "" : parentPath.toString();
+        } else if (item.getPath().isBlank()) {
+            newPath = item.getFilename();
+        } else {
+            if (!item.getPath().endsWith("/")) {
+                newPath = item.getPath() + File.separator + item.getFilename();
+            } else {
+                newPath = item.getPath() + item.getFilename();
+            }
+        }
+        if (!newPath.endsWith("/")) {
+            newPath += "/";
+        }
+        return newPath;
+    }
+
+    private void refreshTileView() {
+        tileContainer.removeAll();
+        for (Metadata item : data) {
+            tileContainer.add(buildTile(item));
+        }
+    }
+
+    private Div buildTile(Metadata item) {
+        Div tile = new Div();
+        tile.addClassName("file-tile");
+
+        Icon icon;
+        if ("../".equals(item.getFilename())) {
+            icon = VaadinIcon.ARROW_UP.create();
+        } else if (item.isDirectory()) {
+            icon = VaadinIcon.FOLDER.create();
+            icon.addClassName("file-tile-icon-folder");
+        } else {
+            icon = getFileTypeIcon(item.getFilename());
+        }
+        icon.addClassName("file-tile-icon");
+
+        Span nameSpan = new Span(item.getFilename());
+        nameSpan.addClassName("file-tile-name");
+
+        tile.add(icon, nameSpan);
+
+        if (!item.isDirectory() && item.getFileSize() != null) {
+            Span sizeSpan = new Span(formatFileSize(item.getFileSize()));
+            sizeSpan.addClassName("file-tile-size");
+            tile.add(sizeSpan);
+        }
+
+        tile.addClickListener(e -> handleTileClick(item));
+
+        return tile;
+    }
+
+    private Icon getFileTypeIcon(String filename) {
+        if (filename == null) return VaadinIcon.FILE.create();
+        String ext = FilenameUtils.getExtension(filename).toLowerCase();
+        return switch (ext) {
+            case "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg" -> VaadinIcon.PICTURE.create();
+            case "mp4", "avi", "mkv", "mov", "wmv", "flv", "webm" -> VaadinIcon.FILM.create();
+            case "mp3", "wav", "flac", "aac", "ogg" -> VaadinIcon.MUSIC.create();
+            case "zip", "tar", "gz", "rar", "7z" -> VaadinIcon.PACKAGE.create();
+            case "txt", "md", "csv", "json", "xml", "html", "css", "js", "java", "py", "vtt", "srt" -> VaadinIcon.FILE_TEXT.create();
+            default -> VaadinIcon.FILE.create();
+        };
+    }
+
+    private void handleTileClick(Metadata item) {
+        if (item.isDirectory()) {
+            navigateToDirectory(item);
+        } else {
+            openDetailsDialog(item);
+        }
+    }
+
+    private void openDetailsDialog(Metadata item) {
         Dialog dialog = new Dialog();
         dialog.setWidth("95vw");
 
-        Path file = fileServiceManager.getFile(event.getItem());
+        Path file = fileServiceManager.getFile(item);
 
-        FileViewerView fileViewerView = new FileViewerView(file, fileServiceManager, event.getItem());
+        FileViewerView fileViewerView = new FileViewerView(file, fileServiceManager, item);
 
         VerticalLayout dialogLayout = new VerticalLayout();
         HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
-
-        Metadata item = event.getItem();
 
         H4 filenameLabel = new H4(item.isDirectory() ? "Directory:" : "File:");
         H5 filename = new H5(item.getFilename());
@@ -664,6 +831,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                     fileServiceManager.renameFile(item, newName);
                     filename.setText(newName);
                     grid.getDataProvider().refreshAll();
+                    if (tileViewActive) {
+                        refreshTileView();
+                    }
                     showSuccessNotification("Renamed successfully");
                     renameDialog.close();
                 } catch (Exception ex) {
@@ -701,6 +871,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             fileServiceManager.delete(item);
             removeItemFromGrid(item);
             grid.getDataProvider().refreshAll();
+            if (tileViewActive) {
+                refreshTileView();
+            }
             dialog.close();
         });
 
@@ -736,7 +909,6 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         if (item.isDirectory()) {
             dialogLayout.add(headerLayout, filenameLabel, filename, renameButton, deleteButton);
         } else {
-            // File size info
             Span sizeInfo = new Span();
             if (item.getFileSize() != null) {
                 sizeInfo.setText("Size: " + formatFileSize(item.getFileSize()));
@@ -760,7 +932,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     @Override
     protected void newItemButtonClick() {
-        UploadComponent uploadComponent = new FileTableUploadComponent<>(fileServiceManager, asyncTaskService, path, data, grid);
+        UploadComponent uploadComponent = new FileTableUploadComponent<>(fileServiceManager, asyncTaskService, path, data, grid, tileContainer, () -> { if (tileViewActive) refreshTileView(); });
         uploadComponent.open();
     }
 
@@ -768,17 +940,23 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
         protected Grid<Metadata> grid;
         protected List<Metadata> data;
+        private final Div tileContainer;
+        private final Runnable tileRefresher;
 
         public FileTableUploadComponent(FileServiceManager fileServiceManager, AsyncTaskService asyncTaskService,
-                                        String path, List<Metadata> data, Grid<Metadata> grid) {
+                                        String path, List<Metadata> data, Grid<Metadata> grid,
+                                        Div tileContainer, Runnable tileRefresher) {
             super(fileServiceManager, asyncTaskService, path);
             this.data = data;
             this.grid = grid;
+            this.tileContainer = tileContainer;
+            this.tileRefresher = tileRefresher;
         }
 
         @Override
         protected void postSaveActions() {
             grid.getDataProvider().refreshAll();
+            tileRefresher.run();
             super.postSaveActions();
         }
 
