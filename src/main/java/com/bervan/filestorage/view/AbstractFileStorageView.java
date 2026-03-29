@@ -22,6 +22,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -61,7 +62,9 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     private List<Metadata> allItemsInPath = new ArrayList<>();
     private boolean tileViewActive = false;
+    private boolean showThumbnails = true;
     private Div tileContainer;
+    private Button thumbnailToggleButton;
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
                                    AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {
@@ -134,6 +137,23 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
 
     @Override
     protected void customizeTopTableActions(HorizontalLayout topTableActions) {
+        // Thumbnail toggle — only visible in tile view
+        thumbnailToggleButton = new BervanButton(new Icon(VaadinIcon.EYE_SLASH));
+        thumbnailToggleButton.addClassName("bervan-icon-btn");
+        thumbnailToggleButton.getElement().setAttribute("title", "Hide Thumbnails");
+        thumbnailToggleButton.setVisible(false);
+        thumbnailToggleButton.addClickListener(e -> {
+            showThumbnails = !showThumbnails;
+            if (showThumbnails) {
+                thumbnailToggleButton.setIcon(new Icon(VaadinIcon.EYE_SLASH));
+                thumbnailToggleButton.getElement().setAttribute("title", "Hide Thumbnails");
+            } else {
+                thumbnailToggleButton.setIcon(new Icon(VaadinIcon.EYE));
+                thumbnailToggleButton.getElement().setAttribute("title", "Show Thumbnails");
+            }
+            refreshTileView();
+        });
+
         // View toggle button (list/tile)
         Button viewToggleButton = new BervanButton(new Icon(VaadinIcon.GRID_SMALL));
         viewToggleButton.addClassName("bervan-icon-btn");
@@ -147,6 +167,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                 contentLayout.setFlexGrow(0, grid);
                 viewToggleButton.setIcon(new Icon(VaadinIcon.LIST));
                 viewToggleButton.getElement().setAttribute("title", "List View");
+                thumbnailToggleButton.setVisible(true);
                 refreshTileView();
             } else {
                 grid.setVisible(true);
@@ -155,6 +176,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                 contentLayout.setFlexGrow(1, grid);
                 viewToggleButton.setIcon(new Icon(VaadinIcon.GRID_SMALL));
                 viewToggleButton.getElement().setAttribute("title", "Tile View");
+                thumbnailToggleButton.setVisible(false);
             }
         });
 
@@ -196,7 +218,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         uploadButton.getElement().setAttribute("title", "Upload File");
         uploadButton.addClickListener(e -> newItemButtonClick());
 
-        topTableActions.add(viewToggleButton, synchronizeButton, newFolderButton, uploadButton);
+        topTableActions.add(thumbnailToggleButton, viewToggleButton, synchronizeButton, newFolderButton, uploadButton);
     }
 
     private void openNewFolderDialog() {
@@ -742,25 +764,46 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         }
     }
 
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "bmp");
+
+    private static boolean isImageFile(String filename) {
+        if (filename == null || !filename.contains(".")) return false;
+        String ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        return IMAGE_EXTENSIONS.contains(ext);
+    }
+
     private Div buildTile(Metadata item) {
         Div tile = new Div();
         tile.addClassName("file-tile");
 
-        Icon icon;
-        if ("../".equals(item.getFilename())) {
-            icon = VaadinIcon.ARROW_UP.create();
-        } else if (item.isDirectory()) {
-            icon = VaadinIcon.FOLDER.create();
-            icon.addClassName("file-tile-icon-folder");
+        boolean showThumbnail = showThumbnails
+                && !item.isDirectory()
+                && !"../".equals(item.getFilename())
+                && item.getId() != null
+                && isImageFile(item.getFilename());
+
+        if (showThumbnail) {
+            Image img = new Image("/file-storage-app/files/thumbnail?uuid=" + item.getId(), "");
+            img.addClassName("file-tile-thumbnail");
+            img.getElement().setAttribute("loading", "lazy");
+            tile.add(img);
         } else {
-            icon = getFileTypeIcon(item.getFilename());
+            Icon icon;
+            if ("../".equals(item.getFilename())) {
+                icon = VaadinIcon.ARROW_UP.create();
+            } else if (item.isDirectory()) {
+                icon = VaadinIcon.FOLDER.create();
+                icon.addClassName("file-tile-icon-folder");
+            } else {
+                icon = getFileTypeIcon(item.getFilename());
+            }
+            icon.addClassName("file-tile-icon");
+            tile.add(icon);
         }
-        icon.addClassName("file-tile-icon");
 
         Span nameSpan = new Span(item.getFilename());
         nameSpan.addClassName("file-tile-name");
-
-        tile.add(icon, nameSpan);
+        tile.add(nameSpan);
 
         if (!item.isDirectory() && item.getFileSize() != null) {
             Span sizeSpan = new Span(formatFileSize(item.getFileSize()));
