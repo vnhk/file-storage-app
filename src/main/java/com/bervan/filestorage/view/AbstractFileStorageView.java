@@ -64,11 +64,15 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private final H4 pathInfoComponent = new H4();
     private String path = "/";
 
+    private static final String LS_TILE_VIEW = "file-storage-tile-view";
+    private static final String LS_THUMBNAILS = "file-storage-show-thumbnails";
+
     private List<Metadata> allItemsInPath = new ArrayList<>();
     private boolean tileViewActive = false;
     private boolean showThumbnails = true;
     private Div tileContainer;
     private Button thumbnailToggleButton;
+    private Button viewToggleButton;
 
     public AbstractFileStorageView(FileServiceManager service, String maxFileSize,
                                    LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
@@ -114,6 +118,39 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         contentLayout.addComponentAtIndex(0, pathInfoComponent);
         contentLayout.addComponentAtIndex(0, new Hr());
         contentLayout.addComponentAtIndex(0, new H5("Max File Size: " + maxFileSize));
+
+        // Restore tile/thumbnail preferences from localStorage after component attaches
+        addAttachListener(event -> restoreViewStateFromLocalStorage(event.getUI()));
+    }
+
+    private void restoreViewStateFromLocalStorage(UI ui) {
+        // Read showThumbnails first, then tileView (so thumbnails setting is ready when tiles render)
+        ui.getPage().executeJs("return localStorage.getItem($0)", LS_THUMBNAILS)
+                .then(String.class, thumbValue -> {
+                    if ("false".equals(thumbValue)) {
+                        showThumbnails = false;
+                        thumbnailToggleButton.setIcon(new Icon(VaadinIcon.EYE));
+                        thumbnailToggleButton.getElement().setAttribute("title", "Show Thumbnails");
+                    }
+                    ui.getPage().executeJs("return localStorage.getItem($0)", LS_TILE_VIEW)
+                            .then(String.class, tileValue -> {
+                                if ("true".equals(tileValue)) {
+                                    tileViewActive = true;
+                                    grid.setVisible(false);
+                                    tileContainer.setVisible(true);
+                                    contentLayout.setFlexGrow(1, tileContainer);
+                                    contentLayout.setFlexGrow(0, grid);
+                                    viewToggleButton.setIcon(new Icon(VaadinIcon.LIST));
+                                    viewToggleButton.getElement().setAttribute("title", "List View");
+                                    thumbnailToggleButton.setVisible(true);
+                                    if (!data.isEmpty()) {
+                                        refreshTileView();
+                                    }
+                                    // If data is still loading, refreshData()'s completion handler
+                                    // will call refreshTileView() because tileViewActive is now true
+                                }
+                            });
+                });
     }
 
     private TextField getTextField() {
@@ -158,15 +195,17 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                 thumbnailToggleButton.setIcon(new Icon(VaadinIcon.EYE));
                 thumbnailToggleButton.getElement().setAttribute("title", "Show Thumbnails");
             }
+            UI.getCurrent().getPage().executeJs("localStorage.setItem($0, $1)", LS_THUMBNAILS, String.valueOf(showThumbnails));
             refreshTileView();
         });
 
         // View toggle button (list/tile)
-        Button viewToggleButton = new BervanButton(new Icon(VaadinIcon.GRID_SMALL));
+        viewToggleButton = new BervanButton(new Icon(VaadinIcon.GRID_SMALL));
         viewToggleButton.addClassName("bervan-icon-btn");
         viewToggleButton.getElement().setAttribute("title", "Tile View");
         viewToggleButton.addClickListener(e -> {
             tileViewActive = !tileViewActive;
+            UI.getCurrent().getPage().executeJs("localStorage.setItem($0, $1)", LS_TILE_VIEW, String.valueOf(tileViewActive));
             if (tileViewActive) {
                 grid.setVisible(false);
                 tileContainer.setVisible(true);
