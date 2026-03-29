@@ -276,6 +276,10 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         }
     }
 
+    public Metadata getMetadata(UUID uuid) {
+        return fileDBStorageService.loadById(uuid).get(0);
+    }
+
     public Path getFile(Metadata metadata) {
         return fileDiskStorageService.getFile(metadata.getPath() + File.separator + metadata.getFilename());
     }

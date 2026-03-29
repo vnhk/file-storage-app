@@ -34,6 +34,10 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     private String description;
     private LocalDateTime modificationDate;
     private Long fileSize;
+    private boolean encrypted;
+    private String encryptionIv;
+    private String encryptionSalt;
+    private String encryptionVerifier;
 
     public Metadata() {
 
@@ -162,6 +166,38 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
 
     public void setFileSize(Long fileSize) {
         this.fileSize = fileSize;
+    }
+
+    public boolean isEncrypted() {
+        return encrypted;
+    }
+
+    public void setEncrypted(boolean encrypted) {
+        this.encrypted = encrypted;
+    }
+
+    public String getEncryptionIv() {
+        return encryptionIv;
+    }
+
+    public void setEncryptionIv(String encryptionIv) {
+        this.encryptionIv = encryptionIv;
+    }
+
+    public String getEncryptionSalt() {
+        return encryptionSalt;
+    }
+
+    public void setEncryptionSalt(String encryptionSalt) {
+        this.encryptionSalt = encryptionSalt;
+    }
+
+    public String getEncryptionVerifier() {
+        return encryptionVerifier;
+    }
+
+    public void setEncryptionVerifier(String encryptionVerifier) {
+        this.encryptionVerifier = encryptionVerifier;
     }
 
     @Override

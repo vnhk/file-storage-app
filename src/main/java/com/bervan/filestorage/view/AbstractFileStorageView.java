@@ -7,6 +7,7 @@ import com.bervan.common.config.BervanViewConfig;
 import com.bervan.common.view.AbstractBervanTableView;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.model.UploadResponse;
+import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB;
 import com.bervan.filestorage.view.fileviever.FileViewerView;
@@ -27,8 +28,10 @@ import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
@@ -57,6 +60,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private final String maxFileSize;
     private final AsyncTaskService asyncTaskService;
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
+    private final FileEncryptionService fileEncryptionService;
     private final H4 pathInfoComponent = new H4();
     private String path = "/";
 
@@ -66,13 +70,16 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private Div tileContainer;
     private Button thumbnailToggleButton;
 
-    public AbstractFileStorageView(FileServiceManager service, String maxFileSize, LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
-                                   AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig) {
+    public AbstractFileStorageView(FileServiceManager service, String maxFileSize,
+                                   LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
+                                   AsyncTaskService asyncTaskService, BervanViewConfig bervanViewConfig,
+                                   FileEncryptionService fileEncryptionService) {
         super(new FileStorageAppPageLayout(ROUTE_NAME), service, bervanViewConfig, Metadata.class);
         this.asyncTaskService = asyncTaskService;
         this.fileServiceManager = service;
         this.maxFileSize = maxFileSize;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
+        this.fileEncryptionService = fileEncryptionService;
         render();
     }
 
@@ -775,12 +782,16 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
     private Div buildTile(Metadata item) {
         Div tile = new Div();
         tile.addClassName("file-tile");
+        if (item.isEncrypted()) {
+            tile.addClassName("encrypted");
+        }
 
         boolean showThumbnail = showThumbnails
                 && !item.isDirectory()
                 && !"../".equals(item.getFilename())
                 && item.getId() != null
-                && isImageFile(item.getFilename());
+                && isImageFile(item.getFilename())
+                && !item.isEncrypted();
 
         if (showThumbnail) {
             Image img = new Image("/file-storage-app/files/thumbnail?uuid=" + item.getId(), "");
@@ -794,6 +805,8 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             } else if (item.isDirectory()) {
                 icon = VaadinIcon.FOLDER.create();
                 icon.addClassName("file-tile-icon-folder");
+            } else if (item.isEncrypted()) {
+                icon = VaadinIcon.LOCK.create();
             } else {
                 icon = getFileTypeIcon(item.getFilename());
             }
@@ -841,9 +854,11 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
         Dialog dialog = new Dialog();
         dialog.setWidth("95vw");
 
-        Path file = fileServiceManager.getFile(item);
-
-        FileViewerView fileViewerView = new FileViewerView(file, fileServiceManager, item);
+        FileViewerView fileViewerView = null;
+        if (!item.isEncrypted()) {
+            Path file = fileServiceManager.getFile(item);
+            fileViewerView = new FileViewerView(file, fileServiceManager, item);
+        }
 
         VerticalLayout dialogLayout = new VerticalLayout();
         HorizontalLayout headerLayout = getDialogTopBarLayout(dialog);
@@ -906,7 +921,7 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
             UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", ROUTE_NAME + "/download?uuid=" + item.getId());
         });
 
-        Button deleteButton = new Button(item.isDirectory() ? "Delete entire directory" : "Delete file");
+        Button deleteButton = new Button(item.isDirectory() ? "Delete entire directory" : item.isEncrypted() ? "Delete encrypted file" : "Delete file");
         deleteButton.addClassName("option-button");
         deleteButton.addClassName("option-button-warning");
 
@@ -958,18 +973,172 @@ public abstract class AbstractFileStorageView extends AbstractBervanTableView<UU
                 sizeInfo.getStyle().set("color", "var(--bervan-text-secondary, gray)");
             }
 
-            if (fileViewerView.isFileSupportView) {
-                dialogLayout.add(headerLayout, fileViewerView, filenameLabel, filename, sizeInfo, renameButton,
+            if (item.isEncrypted()) {
+                Paragraph encryptedLabel = new Paragraph("🔒 Encrypted");
+                encryptedLabel.getStyle().set("color", "var(--bervan-warning, orange)");
+                Button openEncryptedBtn = new Button("Open (enter password)");
+                openEncryptedBtn.addClassName("option-button");
+                openEncryptedBtn.addClickListener(e -> {
+                    dialog.close();
+                    openPasswordDialog(item);
+                });
+                dialogLayout.add(headerLayout, encryptedLabel, filenameLabel, filename, sizeInfo, renameButton,
                         descriptionLabel, description, editableDescription, new Hr(),
-                        editButton, saveButton, downloadLink, new Hr(), deleteButton);
+                        editButton, saveButton, openEncryptedBtn, new Hr(), deleteButton);
             } else {
-                dialogLayout.add(headerLayout, filenameLabel, filename, sizeInfo, renameButton,
-                        descriptionLabel, description, editableDescription, new Hr(),
-                        editButton, saveButton, downloadLink, new Hr(), deleteButton);
+                Button encryptButton = new Button("Encrypt file");
+                encryptButton.addClassName("option-button");
+                encryptButton.addClickListener(e -> openEncryptionDialog(item, dialog));
+
+                if (fileViewerView != null && fileViewerView.isFileSupportView) {
+                    dialogLayout.add(headerLayout, fileViewerView, filenameLabel, filename, sizeInfo, renameButton,
+                            descriptionLabel, description, editableDescription, new Hr(),
+                            editButton, saveButton, encryptButton, downloadLink, new Hr(), deleteButton);
+                } else {
+                    dialogLayout.add(headerLayout, filenameLabel, filename, sizeInfo, renameButton,
+                            descriptionLabel, description, editableDescription, new Hr(),
+                            editButton, saveButton, encryptButton, downloadLink, new Hr(), deleteButton);
+                }
             }
         }
 
         dialog.add(dialogLayout);
+        dialog.open();
+    }
+
+    private void openEncryptionDialog(Metadata item, Dialog parentDialog) {
+        Dialog encDialog = new Dialog();
+        encDialog.setHeaderTitle("Encrypt File");
+        encDialog.setWidth("400px");
+        VerticalLayout layout = new VerticalLayout();
+
+        Paragraph warning = new Paragraph("Warning: If you lose the password, the file cannot be recovered!");
+        warning.getStyle().set("color", "var(--bervan-warning, orange)");
+
+        PasswordField passwordField = new PasswordField("Password");
+        passwordField.setWidthFull();
+        PasswordField confirmField = new PasswordField("Confirm Password");
+        confirmField.setWidthFull();
+
+        BervanButton encryptBtn = new BervanButton("Encrypt", e -> {
+            String pwd = passwordField.getValue();
+            String confirm = confirmField.getValue();
+            if (pwd.isEmpty()) { showWarningNotification("Password cannot be empty"); return; }
+            if (!pwd.equals(confirm)) { showWarningNotification("Passwords do not match"); return; }
+
+            try {
+                Path file = fileServiceManager.getFile(item);
+                String[] result = fileEncryptionService.encryptFile(file, pwd);
+                item.setEncrypted(true);
+                item.setEncryptionIv(result[0]);
+                item.setEncryptionSalt(result[1]);
+                item.setEncryptionVerifier(result[2]);
+                fileServiceManager.updateMetadata(item);
+                grid.getDataProvider().refreshAll();
+                if (tileViewActive) refreshTileView();
+                encDialog.close();
+                parentDialog.close();
+                showSuccessNotification("File encrypted successfully");
+            } catch (Exception ex) {
+                log.error("Encryption failed", ex);
+                showErrorNotification("Encryption failed: " + ex.getMessage());
+            }
+        });
+        BervanButton cancelBtn = new BervanButton("Cancel", e -> encDialog.close());
+        encDialog.getFooter().add(cancelBtn, encryptBtn);
+        layout.add(warning, passwordField, confirmField);
+        encDialog.add(layout);
+        encDialog.open();
+    }
+
+    private void openPasswordDialog(Metadata item) {
+        Dialog pwDialog = new Dialog();
+        pwDialog.setHeaderTitle("Enter Password");
+        pwDialog.setWidth("400px");
+        VerticalLayout layout = new VerticalLayout();
+
+        PasswordField passwordField = new PasswordField("Password");
+        passwordField.setWidthFull();
+        Paragraph errorMsg = new Paragraph();
+        errorMsg.getStyle().set("color", "var(--bervan-danger, red)");
+        errorMsg.setVisible(false);
+
+        BervanButton unlockBtn = new BervanButton("Open", e -> {
+            String pwd = passwordField.getValue();
+            if (pwd.isEmpty()) { errorMsg.setText("Password cannot be empty"); errorMsg.setVisible(true); return; }
+            try {
+                byte[] key = fileEncryptionService.deriveKey(pwd, item.getEncryptionSalt());
+                boolean valid = fileEncryptionService.verifyPassword(key, item.getEncryptionIv(), item.getEncryptionVerifier());
+                if (!valid) {
+                    errorMsg.setText("Wrong password");
+                    errorMsg.setVisible(true);
+                    passwordField.clear();
+                    return;
+                }
+                // Store key in session for streaming endpoint
+                VaadinSession.getCurrent().getSession().setAttribute("enc_key_" + item.getId(), key);
+                VaadinSession.getCurrent().getSession().setAttribute("enc_iv_" + item.getId(), item.getEncryptionIv());
+                pwDialog.close();
+                openEncryptedViewerDialog(item);
+            } catch (Exception ex) {
+                log.error("Decryption key derivation failed", ex);
+                errorMsg.setText("Error: " + ex.getMessage());
+                errorMsg.setVisible(true);
+            }
+        });
+
+        passwordField.addKeyPressListener(com.vaadin.flow.component.Key.ENTER, ev -> unlockBtn.click());
+
+        BervanButton cancelBtn = new BervanButton("Cancel", e -> pwDialog.close());
+        pwDialog.getFooter().add(cancelBtn, unlockBtn);
+        layout.add(passwordField, errorMsg);
+        pwDialog.add(layout);
+        pwDialog.open();
+        passwordField.focus();
+    }
+
+    private void openEncryptedViewerDialog(Metadata item) {
+        Dialog dialog = new Dialog();
+        dialog.setWidth("95vw");
+        VerticalLayout layout = new VerticalLayout();
+        HorizontalLayout header = getDialogTopBarLayout(dialog);
+
+        String streamUrl = "/file-storage-app/files/stream?uuid=" + item.getId();
+        String lower = item.getFilename().toLowerCase();
+
+        com.vaadin.flow.component.Component viewer = null;
+        if (lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mov")) {
+            String mimeType = lower.endsWith(".webm") ? "video/webm" : lower.endsWith(".mov") ? "video/quicktime" : "video/mp4";
+            viewer = new com.vaadin.flow.component.Html(
+                "<video controls width=\"100%\" height=\"600\" style=\"max-width:100%\">" +
+                "<source src=\"" + streamUrl + "\" type=\"" + mimeType + "\">" +
+                "</video>"
+            );
+        } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".gif")) {
+            com.vaadin.flow.component.html.Image img = new com.vaadin.flow.component.html.Image(streamUrl, item.getFilename());
+            img.setMaxWidth("100%");
+            viewer = img;
+        }
+
+        H5 filename = new H5(item.getFilename());
+        Button downloadBtn = new Button("Download (decrypted)");
+        downloadBtn.addClassName("option-button");
+        downloadBtn.addClickListener(e ->
+            UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", streamUrl));
+
+        Button lockBtn = new Button("Lock (clear key)");
+        lockBtn.addClassName("option-button");
+        lockBtn.addClickListener(e -> {
+            VaadinSession.getCurrent().getSession().removeAttribute("enc_key_" + item.getId());
+            VaadinSession.getCurrent().getSession().removeAttribute("enc_iv_" + item.getId());
+            dialog.close();
+            showPrimaryNotification("File locked");
+        });
+
+        if (viewer != null) layout.add(header, viewer, filename, downloadBtn, lockBtn);
+        else layout.add(header, filename, downloadBtn, lockBtn);
+
+        dialog.add(layout);
         dialog.open();
     }
 
