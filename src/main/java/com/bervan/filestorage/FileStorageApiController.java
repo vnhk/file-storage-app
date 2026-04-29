@@ -176,6 +176,18 @@ public class FileStorageApiController {
         }
     }
 
+    @PutMapping("/{id}/content")
+    public ResponseEntity<Void> updateContent(@PathVariable UUID id, @org.springframework.web.bind.annotation.RequestBody String content) {
+        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        try {
+            Metadata m = fileServiceManager.getMetadata(id);
+            fileServiceManager.updateFileContent(m, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @PostMapping("/sync")
     public ResponseEntity<Void> sync() {
         if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
