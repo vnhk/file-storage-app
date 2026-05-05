@@ -1,6 +1,5 @@
 package com.bervan.filestorage;
 
-import com.bervan.common.service.AuthService;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
@@ -34,10 +33,6 @@ public class FileStorageApiController {
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
     }
 
-    private boolean notLoggedIn() {
-        return AuthService.getLoggedUserId() == null;
-    }
-
     public record MetadataDto(
             String id,
             String filename,
@@ -64,7 +59,6 @@ public class FileStorageApiController {
 
     @GetMapping
     public ResponseEntity<List<MetadataDto>> list(@RequestParam(defaultValue = "/") String path) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         Set<Metadata> items = fileServiceManager.loadByPath(path);
         List<MetadataDto> result = items.stream()
                 .sorted(Comparator.comparing(Metadata::isDirectory).reversed()
@@ -81,7 +75,6 @@ public class FileStorageApiController {
             @RequestParam(defaultValue = "false") boolean extract,
             @RequestParam("files") List<MultipartFile> files
     ) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         List<MetadataDto> saved = new ArrayList<>();
         for (MultipartFile file : files) {
             try {
@@ -105,7 +98,6 @@ public class FileStorageApiController {
             @RequestParam(defaultValue = "/") String path,
             @RequestParam String name
     ) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             Metadata dir = fileServiceManager.createEmptyDirectory(path, name);
             return ResponseEntity.ok(toDto(dir));
@@ -116,7 +108,6 @@ public class FileStorageApiController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             Metadata m = fileServiceManager.getMetadata(id);
             fileServiceManager.delete(m);
@@ -128,7 +119,6 @@ public class FileStorageApiController {
 
     @PatchMapping("/{id}/rename")
     public ResponseEntity<Void> rename(@PathVariable UUID id, @RequestParam String name) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             Metadata m = fileServiceManager.getMetadata(id);
             fileServiceManager.renameFile(m, name);
@@ -140,7 +130,6 @@ public class FileStorageApiController {
 
     @PostMapping("/{id}/move")
     public ResponseEntity<Void> move(@PathVariable UUID id, @RequestParam String destPath) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             Metadata m = fileServiceManager.getMetadata(id);
             fileServiceManager.moveFileToPath(m, destPath);
@@ -152,7 +141,6 @@ public class FileStorageApiController {
 
     @GetMapping("/directories")
     public ResponseEntity<List<MetadataDto>> listDirectories(@RequestParam(defaultValue = "/") String path) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         List<Metadata> dirs = fileServiceManager.getDirectoriesInPath(path);
         return ResponseEntity.ok(dirs.stream().map(this::toDto).collect(Collectors.toList()));
     }
@@ -161,7 +149,6 @@ public class FileStorageApiController {
     public ResponseEntity<Void> unlockFile(@PathVariable UUID id,
                                            @RequestParam String password,
                                            HttpSession session) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             Metadata m = fileServiceManager.getMetadata(id);
             if (!m.isEncrypted()) return ResponseEntity.badRequest().build();
@@ -178,7 +165,6 @@ public class FileStorageApiController {
 
     @PutMapping("/{id}/content")
     public ResponseEntity<Void> updateContent(@PathVariable UUID id, @org.springframework.web.bind.annotation.RequestBody String content) {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             Metadata m = fileServiceManager.getMetadata(id);
             fileServiceManager.updateFileContent(m, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -190,7 +176,6 @@ public class FileStorageApiController {
 
     @PostMapping("/sync")
     public ResponseEntity<Void> sync() {
-        if (notLoggedIn()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
             return ResponseEntity.ok().build();
@@ -201,7 +186,6 @@ public class FileStorageApiController {
 
     @PostMapping("/download-zip")
     public void downloadZip(@RequestBody List<UUID> ids, HttpServletResponse response) throws IOException {
-        if (notLoggedIn()) { response.sendError(HttpServletResponse.SC_UNAUTHORIZED); return; }
         response.setContentType("application/zip");
         response.setHeader("Content-Disposition", "attachment; filename=\"files.zip\"");
         try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
