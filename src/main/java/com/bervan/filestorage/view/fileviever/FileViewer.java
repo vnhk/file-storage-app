@@ -6,6 +6,7 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 
 
+@Deprecated
 public interface FileViewer {
     boolean supports(String path);
 

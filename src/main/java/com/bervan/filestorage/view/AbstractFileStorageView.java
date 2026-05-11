@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+@Deprecated
 public abstract class AbstractFileStorageView extends AbstractBervanTableView<UUID, Metadata> {
     public static final String ROUTE_NAME = "file-storage-app/files";
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");

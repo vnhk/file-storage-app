@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.function.Consumer;
 
+@Deprecated
 public class TextViewer implements FileViewer {
     private static final long MAX_EDITABLE_SIZE = 2 * FileUtils.ONE_MB;
 

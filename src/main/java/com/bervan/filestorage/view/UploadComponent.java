@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
+@Deprecated
 public abstract class UploadComponent extends AbstractPageView {
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileServiceManager fileServiceManager;

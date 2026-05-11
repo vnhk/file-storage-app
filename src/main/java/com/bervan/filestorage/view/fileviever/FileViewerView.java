@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+@Deprecated
 public class FileViewerView extends AbstractPageView {
     private static List<FileViewer> fileViewers = new ArrayList<>();
 

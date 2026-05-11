@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Base64;
 
+@Deprecated
 public class PictureViewer implements FileViewer {
     @Override
     public boolean supports(String path) {
