@@ -3,7 +3,7 @@
 > **IMPORTANT**: Keep this file updated when making significant changes to the codebase. This file serves as persistent memory between Claude Code sessions.
 
 ## Overview
-Web-based file management system with dual storage: files on disk + metadata in database. Supports upload, download, folder organization, copy/move, and file editing. Built with Spring Boot + Vaadin.
+Web-based file management system with dual storage: files on disk + metadata in database. Supports upload, download, folder organization, copy/move, and file editing. Built with Spring Boot (REST API).
 
 ## Key Architecture
 
