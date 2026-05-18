@@ -33,17 +33,6 @@ public class FileStorageApiController {
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
     }
 
-    public record MetadataDto(
-            String id,
-            String filename,
-            String path,
-            boolean directory,
-            String extension,
-            Long fileSize,
-            boolean encrypted,
-            String modificationDate
-    ) {}
-
     private MetadataDto toDto(Metadata m) {
         return new MetadataDto(
                 m.getId() != null ? m.getId().toString() : null,
@@ -192,13 +181,62 @@ public class FileStorageApiController {
             for (UUID id : ids) {
                 try {
                     Metadata m = fileServiceManager.getMetadata(id);
-                    if (m.isDirectory()) continue;
-                    Path file = fileServiceManager.getFile(id);
-                    zos.putNextEntry(new ZipEntry(m.getFilename()));
-                    java.nio.file.Files.copy(file, zos);
-                    zos.closeEntry();
-                } catch (Exception ignored) {}
+                    if (m.isDirectory()) {
+                        addFolderToZip(m, m.getFilename(), zos);
+                    } else {
+                        addFileToZip(m, m.getFilename(), zos);
+                    }
+                } catch (Exception ignored) {
+                }
             }
         }
+    }
+
+    private void addFolderToZip(Metadata folder, String basePathInZip, ZipOutputStream zos) throws IOException {
+        // Add an entry for the directory itself (ensures empty dirs are preserved)
+        String dirEntryName = basePathInZip.endsWith("/") ? basePathInZip : basePathInZip + "/";
+        zos.putNextEntry(new ZipEntry(dirEntryName));
+        zos.closeEntry();
+
+        String p = folder.getPath() != null ? folder.getPath() : "/";
+        String sep = "/".equals(p) ? "" : "/";
+        if (p.endsWith("/")) {
+            sep = "";
+        }
+        String childPath = p + sep + folder.getFilename();
+
+        // Load immediate children and recurse
+        Set<Metadata> children = fileServiceManager.loadByPath(childPath + "/");
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+
+        for (Metadata child : children) {
+            String entryName = dirEntryName + child.getFilename();
+            if (child.isDirectory()) {
+                addFolderToZip(child, entryName, zos);
+            } else {
+                addFileToZip(child, entryName, zos);
+            }
+        }
+    }
+
+    private void addFileToZip(Metadata fileMeta, String entryName, ZipOutputStream zos) throws IOException {
+        Path file = fileServiceManager.getFile(fileMeta.getId());
+        zos.putNextEntry(new ZipEntry(entryName));
+        java.nio.file.Files.copy(file, zos);
+        zos.closeEntry();
+    }
+
+    public record MetadataDto(
+            String id,
+            String filename,
+            String path,
+            boolean directory,
+            String extension,
+            Long fileSize,
+            boolean encrypted,
+            String modificationDate
+    ) {
     }
 }
