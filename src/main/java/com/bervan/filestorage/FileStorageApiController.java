@@ -3,6 +3,7 @@ package com.bervan.filestorage;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
+import com.bervan.logging.JsonLogger;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
@@ -10,16 +11,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/files")
 public class FileStorageApiController {
+    private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
 
     private final FileServiceManager fileServiceManager;
     private final FileEncryptionService fileEncryptionService;
@@ -177,7 +181,9 @@ public class FileStorageApiController {
     public void downloadZip(@RequestBody List<UUID> ids, HttpServletResponse response) throws IOException {
         response.setContentType("application/zip");
         response.setHeader("Content-Disposition", "attachment; filename=\"files.zip\"");
-        try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
+        try (BufferedOutputStream bos = new BufferedOutputStream(response.getOutputStream(), 65536);
+             ZipOutputStream zos = new ZipOutputStream(bos)) {
+            zos.setLevel(Deflater.BEST_SPEED);
             for (UUID id : ids) {
                 try {
                     Metadata m = fileServiceManager.getMetadata(id);
@@ -186,9 +192,11 @@ public class FileStorageApiController {
                     } else {
                         addFileToZip(m, m.getFilename(), zos);
                     }
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    log.warn("Failed to get top-level metadata or process zip entry for ID: " + id, e);
                 }
             }
+            zos.flush();
         }
     }
 
@@ -197,6 +205,7 @@ public class FileStorageApiController {
         String dirEntryName = basePathInZip.endsWith("/") ? basePathInZip : basePathInZip + "/";
         zos.putNextEntry(new ZipEntry(dirEntryName));
         zos.closeEntry();
+        zos.flush();
 
         String p = folder.getPath() != null ? folder.getPath() : "/";
         String sep = "/".equals(p) ? "" : "/";
@@ -213,19 +222,28 @@ public class FileStorageApiController {
 
         for (Metadata child : children) {
             String entryName = dirEntryName + child.getFilename();
-            if (child.isDirectory()) {
-                addFolderToZip(child, entryName, zos);
-            } else {
-                addFileToZip(child, entryName, zos);
+            try {
+                if (child.isDirectory()) {
+                    addFolderToZip(child, entryName, zos);
+                } else {
+                    addFileToZip(child, entryName, zos);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to add child to zip: " + entryName, e);
             }
         }
     }
 
     private void addFileToZip(Metadata fileMeta, String entryName, ZipOutputStream zos) throws IOException {
-        Path file = fileServiceManager.getFile(fileMeta.getId());
-        zos.putNextEntry(new ZipEntry(entryName));
-        java.nio.file.Files.copy(file, zos);
-        zos.closeEntry();
+        Path file = fileServiceManager.getFile(fileMeta);
+        if (java.nio.file.Files.exists(file) && java.nio.file.Files.isRegularFile(file)) {
+            zos.putNextEntry(new ZipEntry(entryName));
+            java.nio.file.Files.copy(file, zos);
+            zos.closeEntry();
+            zos.flush();
+        } else {
+            log.warn("File does not exist or is not a regular file on disk: " + (file != null ? file.toString() : "null") + " for metadata: " + fileMeta.getFilename());
+        }
     }
 
     public record MetadataDto(
