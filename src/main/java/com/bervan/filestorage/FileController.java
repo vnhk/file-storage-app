@@ -3,7 +3,7 @@ package com.bervan.filestorage;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
-import jakarta.servlet.http.HttpServletRequest;
+import com.bervan.logging.JsonLogger;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.core.io.UrlResource;
@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,102 +28,90 @@ import java.util.Set;
 import java.util.UUID;
 
 @RestController
+@RequestMapping("/api")
 public class FileController {
-
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "bmp", "webp");
     private final FileServiceManager fileServiceManager;
     private final FileEncryptionService fileEncryptionService;
+    private JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
 
     public FileController(FileServiceManager fileServiceManager, FileEncryptionService fileEncryptionService) {
         this.fileServiceManager = fileServiceManager;
         this.fileEncryptionService = fileEncryptionService;
     }
 
-    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "bmp", "webp");
-
     @GetMapping("/file-storage-app/files/thumbnail")
-    public ResponseEntity<byte[]> getThumbnail(@RequestParam UUID uuid) throws IOException {
+    public ResponseEntity<byte[]> getThumbnail(@RequestParam UUID uuid, HttpSession session) throws IOException {
+        log.info("Getting thumbnail for file {}", uuid);
+        Metadata metadata = fileServiceManager.getMetadata(uuid);
         Path file = fileServiceManager.getFile(uuid);
         String filename = file.getFileName().toString().toLowerCase();
         String ext = filename.contains(".") ? filename.substring(filename.lastIndexOf('.') + 1) : "";
 
-        if (!IMAGE_EXTENSIONS.contains(ext)) {
-            return ResponseEntity.notFound().build();
+        if (IMAGE_EXTENSIONS.contains(ext)) {
+            // For images: generate scaled thumbnail
+            byte[] fileBytes = getFileBytes(metadata, file, session, uuid);
+            if (fileBytes == null) {
+                return ResponseEntity.status(401).build();
+            }
+
+            BufferedImage original = ImageIO.read(new java.io.ByteArrayInputStream(fileBytes));
+            if (original == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            int maxSize = 200;
+            int w = original.getWidth();
+            int h = original.getHeight();
+            double scale = Math.min((double) maxSize / w, (double) maxSize / h);
+            int newW = Math.max(1, (int) (w * scale));
+            int newH = Math.max(1, (int) (h * scale));
+
+            BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = scaled.createGraphics();
+            g2d.setColor(Color.WHITE);
+            g2d.fillRect(0, 0, newW, newH);
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.drawImage(original, 0, 0, newW, newH, null);
+            g2d.dispose();
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(scaled, "jpeg", baos);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, public")
+                    .body(baos.toByteArray());
+        } else {
+            // For non-image files: return full file bytes
+            byte[] fileBytes = getFileBytes(metadata, file, session, uuid);
+            if (fileBytes == null) {
+                return ResponseEntity.status(401).build();
+            }
+
+            String mimeType = guessMimeType(metadata.getFilename());
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(mimeType))
+                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileBytes.length))
+                    .body(fileBytes);
         }
-
-        BufferedImage original = ImageIO.read(file.toFile());
-        if (original == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        int maxSize = 200;
-        int w = original.getWidth();
-        int h = original.getHeight();
-        double scale = Math.min((double) maxSize / w, (double) maxSize / h);
-        int newW = Math.max(1, (int) (w * scale));
-        int newH = Math.max(1, (int) (h * scale));
-
-        BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = scaled.createGraphics();
-        g2d.setColor(Color.WHITE);
-        g2d.fillRect(0, 0, newW, newH);
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(original, 0, 0, newW, newH, null);
-        g2d.dispose();
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(scaled, "jpeg", baos);
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_JPEG)
-                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, public")
-                .body(baos.toByteArray());
     }
 
-    @GetMapping("/file-storage-app/files/stream")
-    public void streamEncryptedFile(@RequestParam UUID uuid,
-                                    HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    HttpSession session) throws IOException {
-        byte[] keyBytes = (byte[]) session.getAttribute("enc_key_" + uuid);
-        String ivHex = (String) session.getAttribute("enc_iv_" + uuid);
-        if (keyBytes == null || ivHex == null) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Session key not found — please enter password");
-            return;
-        }
-
-        Metadata metadata = fileServiceManager.getMetadata(uuid);
-        Path file = fileServiceManager.getFile(uuid);
-        long fileSize = metadata.getFileSize() != null ? metadata.getFileSize() : Files.size(file);
-
-        String rangeHeader = request.getHeader("Range");
-        long rangeStart = 0;
-        long rangeEnd = fileSize - 1;
-
-        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-            String[] parts = rangeHeader.substring(6).split("-");
-            if (parts.length > 0 && !parts[0].isEmpty()) rangeStart = Long.parseLong(parts[0]);
-            if (parts.length > 1 && !parts[1].isEmpty()) rangeEnd = Long.parseLong(parts[1]);
-        }
-        rangeEnd = Math.min(rangeEnd, fileSize - 1);
-        long contentLength = rangeEnd - rangeStart + 1;
-
-        response.setStatus(rangeHeader != null ? HttpServletResponse.SC_PARTIAL_CONTENT : HttpServletResponse.SC_OK);
-        response.setHeader("Content-Type", guessMimeType(metadata.getFilename()));
-        response.setHeader("Content-Length", String.valueOf(contentLength));
-        response.setHeader("Content-Range", "bytes " + rangeStart + "-" + rangeEnd + "/" + fileSize);
-        response.setHeader("Accept-Ranges", "bytes");
-
-        try (InputStream decrypted = fileEncryptionService.createDecryptingStream(file, keyBytes, ivHex, rangeStart)) {
-            byte[] buf = new byte[65536];
-            long remaining = contentLength;
-            int read;
-            while (remaining > 0 && (read = decrypted.read(buf, 0, (int) Math.min(buf.length, remaining))) != -1) {
-                response.getOutputStream().write(buf, 0, read);
-                remaining -= read;
+    private byte[] getFileBytes(Metadata metadata, Path file, HttpSession session, UUID uuid) throws IOException {
+        if (metadata.isEncrypted()) {
+            String ivHex = (String) session.getAttribute("enc_iv_" + uuid);
+            byte[] keyBytes = (byte[]) session.getAttribute("enc_key_" + uuid);
+            if (keyBytes == null || ivHex == null) {
+                return null;
             }
-            response.getOutputStream().flush();
-        } catch (Exception e) {
-            if (!response.isCommitted()) response.sendError(500, "Decryption failed");
+            try (InputStream decrypted = fileEncryptionService.createDecryptingStream(file, keyBytes, ivHex, 0)) {
+                return decrypted.readAllBytes();
+            } catch (Exception e) {
+                throw new IOException("Decryption failed", e);
+            }
+        } else {
+            return Files.readAllBytes(file);
         }
     }
 
