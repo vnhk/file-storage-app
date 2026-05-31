@@ -6,25 +6,31 @@ import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.logging.JsonLogger;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedOutputStream;
-import java.io.IOException;
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.zip.Deflater;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/files")
 public class FileStorageApiController {
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "bmp", "webp");
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
-
     private final FileServiceManager fileServiceManager;
     private final FileEncryptionService fileEncryptionService;
     private final com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
@@ -35,19 +41,6 @@ public class FileStorageApiController {
         this.fileServiceManager = fileServiceManager;
         this.fileEncryptionService = fileEncryptionService;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
-    }
-
-    private MetadataDto toDto(Metadata m) {
-        return new MetadataDto(
-                m.getId() != null ? m.getId().toString() : null,
-                m.getFilename(),
-                m.getPath(),
-                m.isDirectory(),
-                m.getExtension(),
-                m.getFileSize(),
-                m.isEncrypted(),
-                m.getModificationDate() != null ? m.getModificationDate().toString() : null
-        );
     }
 
     @GetMapping
@@ -157,7 +150,7 @@ public class FileStorageApiController {
     }
 
     @PutMapping("/{id}/content")
-    public ResponseEntity<Void> updateContent(@PathVariable UUID id, @org.springframework.web.bind.annotation.RequestBody String content) {
+    public ResponseEntity<Void> updateContent(@PathVariable UUID id, @RequestBody String content) {
         try {
             Metadata m = fileServiceManager.getMetadata(id);
             fileServiceManager.updateFileContent(m, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -184,77 +177,136 @@ public class FileStorageApiController {
         try (BufferedOutputStream bos = new BufferedOutputStream(response.getOutputStream(), 65536);
              ZipOutputStream zos = new ZipOutputStream(bos)) {
             zos.setLevel(Deflater.BEST_SPEED);
-            for (UUID id : ids) {
-                try {
-                    Metadata m = fileServiceManager.getMetadata(id);
-                    if (m.isDirectory()) {
-                        addFolderToZip(m, m.getFilename(), zos);
-                    } else {
-                        addFileToZip(m, m.getFilename(), zos);
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to get top-level metadata or process zip entry for ID: " + id, e);
-                }
-            }
+            fileServiceManager.addFilesToZip(ids, zos);
             zos.flush();
         }
     }
 
-    private void addFolderToZip(Metadata folder, String basePathInZip, ZipOutputStream zos) throws IOException {
-        // Add an entry for the directory itself (ensures empty dirs are preserved)
-        String dirEntryName = basePathInZip.endsWith("/") ? basePathInZip : basePathInZip + "/";
-        zos.putNextEntry(new ZipEntry(dirEntryName));
-        zos.closeEntry();
-        zos.flush();
+    @GetMapping("/thumbnail")
+    public ResponseEntity<byte[]> getThumbnail(@RequestParam UUID uuid, HttpSession session) throws IOException {
+        log.info("Getting thumbnail for file {}", uuid);
+        Metadata metadata = fileServiceManager.getMetadata(uuid);
+        Path file = fileServiceManager.getFile(uuid);
+        String filename = file.getFileName().toString().toLowerCase();
+        String ext = filename.contains(".") ? filename.substring(filename.lastIndexOf('.') + 1) : "";
 
-        String p = folder.getPath() != null ? folder.getPath() : "/";
-        String sep = "/".equals(p) ? "" : "/";
-        if (p.endsWith("/")) {
-            sep = "";
-        }
-        String childPath = p + sep + folder.getFilename();
-
-        // Load immediate children and recurse
-        Set<Metadata> children = fileServiceManager.loadByPath(childPath + "/");
-        if (children == null || children.isEmpty()) {
-            return;
-        }
-
-        for (Metadata child : children) {
-            String entryName = dirEntryName + child.getFilename();
-            try {
-                if (child.isDirectory()) {
-                    addFolderToZip(child, entryName, zos);
-                } else {
-                    addFileToZip(child, entryName, zos);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to add child to zip: " + entryName, e);
-            }
-        }
-    }
-
-    private void addFileToZip(Metadata fileMeta, String entryName, ZipOutputStream zos) throws IOException {
-        Path file = fileServiceManager.getFile(fileMeta);
-        if (java.nio.file.Files.exists(file) && java.nio.file.Files.isRegularFile(file)) {
-            zos.putNextEntry(new ZipEntry(entryName));
-            java.nio.file.Files.copy(file, zos);
-            zos.closeEntry();
-            zos.flush();
+        if (IMAGE_EXTENSIONS.contains(ext)) {
+            // For images: generate scaled thumbnail
+            return getResponseEntityForImages(uuid, session, metadata, file);
         } else {
-            log.warn("File does not exist or is not a regular file on disk: " + (file != null ? file.toString() : "null") + " for metadata: " + fileMeta.getFilename());
+            return getResponseEntityForNonImages(uuid, session, metadata, file);
         }
     }
 
-    public record MetadataDto(
-            String id,
-            String filename,
-            String path,
-            boolean directory,
-            String extension,
-            Long fileSize,
-            boolean encrypted,
-            String modificationDate
-    ) {
+    @GetMapping("/download")
+    public ResponseEntity<UrlResource> downloadFile(@RequestParam UUID uuid, HttpServletResponse response) throws IOException {
+        response.addHeader("Accept-Ranges", "bytes");
+        Path file = fileServiceManager.getFile(uuid);
+        UrlResource urlResource = new UrlResource(file.toUri());
+
+        String[] pathParts = file.getFileName().toString().split(File.separator);
+        String filename = pathParts[pathParts.length - 1];
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(urlResource);
     }
+
+
+    private ResponseEntity<byte[]> getResponseEntityForNonImages(UUID uuid, HttpSession session, Metadata metadata, Path file) throws IOException {
+        // For non-image files: return full file bytes
+        byte[] fileBytes = getFileBytes(metadata, file, session, uuid);
+        if (fileBytes == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        String mimeType = guessMimeType(metadata.getFilename());
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileBytes.length))
+                .body(fileBytes);
+    }
+
+    private ResponseEntity<byte[]> getResponseEntityForImages(UUID uuid, HttpSession session, Metadata metadata, Path file) throws IOException {
+        byte[] fileBytes = getFileBytes(metadata, file, session, uuid);
+        if (fileBytes == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        BufferedImage original = ImageIO.read(new ByteArrayInputStream(fileBytes));
+        if (original == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        int maxSize = 200;
+        int w = original.getWidth();
+        int h = original.getHeight();
+        double scale = Math.min((double) maxSize / w, (double) maxSize / h);
+        int newW = Math.max(1, (int) (w * scale));
+        int newH = Math.max(1, (int) (h * scale));
+
+        BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2d = scaled.createGraphics();
+        g2d.setColor(Color.WHITE);
+        g2d.fillRect(0, 0, newW, newH);
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2d.drawImage(original, 0, 0, newW, newH, null);
+        g2d.dispose();
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(scaled, "jpeg", baos);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, public")
+                .body(baos.toByteArray());
+    }
+
+    private byte[] getFileBytes(Metadata metadata, Path file, HttpSession session, UUID uuid) throws IOException {
+        if (metadata.isEncrypted()) {
+            String ivHex = (String) session.getAttribute("enc_iv_" + uuid);
+            byte[] keyBytes = (byte[]) session.getAttribute("enc_key_" + uuid);
+            if (keyBytes == null || ivHex == null) {
+                return null;
+            }
+            try (InputStream decrypted = fileEncryptionService.createDecryptingStream(file, keyBytes, ivHex, 0)) {
+                return decrypted.readAllBytes();
+            } catch (Exception e) {
+                throw new IOException("Decryption failed", e);
+            }
+        } else {
+            return Files.readAllBytes(file);
+        }
+    }
+
+    private String guessMimeType(String filename) {
+        if (filename == null) return "application/octet-stream";
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".mp4")) return "video/mp4";
+        if (lower.endsWith(".webm")) return "video/webm";
+        if (lower.endsWith(".mov")) return "video/quicktime";
+        if (lower.endsWith(".mkv")) return "video/x-matroska";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".txt") || lower.endsWith(".md")) return "text/plain";
+        return "application/octet-stream";
+    }
+
+    private MetadataDto toDto(Metadata m) {
+        return new MetadataDto(
+                m.getId() != null ? m.getId().toString() : null,
+                m.getFilename(),
+                m.getPath(),
+                m.isDirectory(),
+                m.getExtension(),
+                m.getFileSize(),
+                m.isEncrypted(),
+                m.getModificationDate() != null ? m.getModificationDate().toString() : null
+        );
+    }
+
 }

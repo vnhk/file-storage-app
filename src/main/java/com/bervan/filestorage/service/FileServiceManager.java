@@ -29,8 +29,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class FileServiceManager extends BaseService<UUID, Metadata> {
@@ -377,6 +379,67 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         } catch (Exception e) {
             log.error("Cannot get file: " + metadata.getId() + ", path = " + file.toString(), e);
             throw new FileDownloadException("Cannot get file: " + metadata.getId());
+        }
+    }
+
+    public void addFilesToZip(List<UUID> ids, ZipOutputStream zos) {
+        for (UUID id : ids) {
+            try {
+                Metadata m = getMetadata(id);
+                if (m.isDirectory()) {
+                    addFolderToZip(m, m.getFilename(), zos);
+                } else {
+                    addFileToZip(m, m.getFilename(), zos);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to get top-level metadata or process zip entry for ID: " + id, e);
+            }
+        }
+    }
+
+    private void addFolderToZip(Metadata folder, String basePathInZip, ZipOutputStream zos) throws IOException {
+        // Add an entry for the directory itself (ensures empty dirs are preserved)
+        String dirEntryName = basePathInZip.endsWith("/") ? basePathInZip : basePathInZip + "/";
+        zos.putNextEntry(new ZipEntry(dirEntryName));
+        zos.closeEntry();
+        zos.flush();
+
+        String p = folder.getPath() != null ? folder.getPath() : "/";
+        String sep = "/".equals(p) ? "" : "/";
+        if (p.endsWith("/")) {
+            sep = "";
+        }
+        String childPath = p + sep + folder.getFilename();
+
+        // Load immediate children and recurse
+        Set<Metadata> children = loadByPath(childPath + "/");
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+
+        for (Metadata child : children) {
+            String entryName = dirEntryName + child.getFilename();
+            try {
+                if (child.isDirectory()) {
+                    addFolderToZip(child, entryName, zos);
+                } else {
+                    addFileToZip(child, entryName, zos);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to add child to zip: " + entryName, e);
+            }
+        }
+    }
+
+    private void addFileToZip(Metadata fileMeta, String entryName, ZipOutputStream zos) throws IOException {
+        Path file = getFile(fileMeta);
+        if (java.nio.file.Files.exists(file) && java.nio.file.Files.isRegularFile(file)) {
+            zos.putNextEntry(new ZipEntry(entryName));
+            java.nio.file.Files.copy(file, zos);
+            zos.closeEntry();
+            zos.flush();
+        } else {
+            log.warn("File does not exist or is not a regular file on disk: " + (file != null ? file.toString() : "null") + " for metadata: " + fileMeta.getFilename());
         }
     }
 }
