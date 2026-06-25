@@ -114,11 +114,13 @@ public class FileStorageApiController {
         }
     }
 
-    @PostMapping("/{id}/move")
-    public ResponseEntity<Void> move(@PathVariable UUID id, @RequestParam String destPath) {
+    @PostMapping("/move")
+    public ResponseEntity<Void> moveAll(@RequestBody List<UUID> ids, @RequestParam String destPath) {
         try {
-            Metadata m = fileServiceManager.getMetadata(id);
-            fileServiceManager.moveFileToPath(m, destPath);
+            for (UUID id : ids) {
+                Metadata m = fileServiceManager.getMetadata(id);
+                fileServiceManager.moveFileToPath(m, destPath);
+            }
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
