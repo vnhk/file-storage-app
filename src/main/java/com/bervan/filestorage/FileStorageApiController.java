@@ -185,7 +185,7 @@ public class FileStorageApiController {
     }
 
     @GetMapping("/thumbnail")
-    public ResponseEntity<byte[]> getThumbnail(@RequestParam UUID uuid, HttpSession session) throws IOException {
+    public ResponseEntity<byte[]> getThumbnail(@RequestParam UUID uuid, @RequestParam(required = false, defaultValue = "true") boolean scale, @RequestParam(required = false) Double maxSize, HttpSession session) throws IOException {
         log.info("Getting thumbnail for file {}", uuid);
         Metadata metadata = fileServiceManager.getMetadata(uuid);
         Path file = fileServiceManager.getFile(uuid);
@@ -194,7 +194,7 @@ public class FileStorageApiController {
 
         if (IMAGE_EXTENSIONS.contains(ext)) {
             // For images: generate scaled thumbnail
-            return getResponseEntityForImages(uuid, session, metadata, file);
+            return getResponseEntityForImages(uuid, session, metadata, file, scale, maxSize);
         } else {
             return getResponseEntityForNonImages(uuid, session, metadata, file);
         }
@@ -231,7 +231,7 @@ public class FileStorageApiController {
                 .body(fileBytes);
     }
 
-    private ResponseEntity<byte[]> getResponseEntityForImages(UUID uuid, HttpSession session, Metadata metadata, Path file) throws IOException {
+    private ResponseEntity<byte[]> getResponseEntityForImages(UUID uuid, HttpSession session, Metadata metadata, Path file, boolean shouldScale, Double maxSizeRequested) throws IOException {
         byte[] fileBytes = getFileBytes(metadata, file, session, uuid);
         if (fileBytes == null) {
             return ResponseEntity.status(401).build();
@@ -242,19 +242,26 @@ public class FileStorageApiController {
             return ResponseEntity.notFound().build();
         }
 
-        int maxSize = 200;
         int w = original.getWidth();
         int h = original.getHeight();
-        double scale = Math.min((double) maxSize / w, (double) maxSize / h);
-        int newW = Math.max(1, (int) (w * scale));
-        int newH = Math.max(1, (int) (h * scale));
 
-        BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
+        if (shouldScale) {
+            double maxSize = 200;
+
+            if (maxSizeRequested != null && maxSizeRequested > 0) {
+                maxSize = maxSizeRequested;
+            }
+            double scale = Math.min((double) maxSize / w, (double) maxSize / h);
+            w = Math.max(1, (int) (w * scale));
+            h = Math.max(1, (int) (h * scale));
+        }
+
+        BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         Graphics2D g2d = scaled.createGraphics();
         g2d.setColor(Color.WHITE);
-        g2d.fillRect(0, 0, newW, newH);
+        g2d.fillRect(0, 0, w, h);
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(original, 0, 0, newW, newH, null);
+        g2d.drawImage(original, 0, 0, w, h, null);
         g2d.dispose();
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
