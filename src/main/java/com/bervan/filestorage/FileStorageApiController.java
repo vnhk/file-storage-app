@@ -210,11 +210,37 @@ public class FileStorageApiController {
     public ResponseEntity<UUID> createStreamDownload(
             @RequestParam UUID metadataUuid) {
 
-        Metadata metadata = fileServiceManager.getMetadata(metadataUuid);
-        UUID downloadId = UUID.randomUUID();
-        fileCache.put(downloadId, new DownloadItem(metadata));
+        log.info("CREATE STREAM DOWNLOAD START metadataUuid={}", metadataUuid);
 
-        return ResponseEntity.ok(downloadId);
+        try {
+            Metadata metadata = fileServiceManager.getMetadata(metadataUuid);
+
+            log.info(
+                    "Metadata loaded id={}, filename={}, path={}, size={}, encrypted={}",
+                    metadata.getId(),
+                    metadata.getFilename(),
+                    metadata.getPath(),
+                    metadata.getFileSize(),
+                    metadata.isEncrypted()
+            );
+
+            UUID downloadId = UUID.randomUUID();
+
+            DownloadItem item = new DownloadItem(metadata);
+            fileCache.put(downloadId, item);
+
+            log.info(
+                    "Download item created downloadId={}, cacheSize={}",
+                    downloadId,
+                    fileCache.size()
+            );
+
+            return ResponseEntity.ok(downloadId);
+
+        } catch (Exception e) {
+            log.error("CREATE STREAM DOWNLOAD FAILED metadataUuid={}", metadataUuid, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @GetMapping("/stream-download")
@@ -223,23 +249,99 @@ public class FileStorageApiController {
             @RequestParam UUID downloadItemUuid,
             @RequestHeader(value = "Range", required = false) String rangeHeader)
             throws IOException {
+
+        log.info(
+                "STREAM DOWNLOAD START uuid={}, range={}",
+                downloadItemUuid,
+                rangeHeader
+        );
+
+        log.info(
+                "Current cache size={}, containsKey={}",
+                fileCache.size(),
+                fileCache.containsKey(downloadItemUuid)
+        );
+
         DownloadItem item = fileCache.get(downloadItemUuid);
-        if (item == null || item.expired()) {
+
+        if (item == null) {
+            log.error(
+                    "DOWNLOAD ITEM NOT FOUND uuid={}",
+                    downloadItemUuid
+            );
             return ResponseEntity.notFound().build();
         }
 
+        if (item.expired()) {
+            log.error(
+                    "DOWNLOAD ITEM EXPIRED uuid={}",
+                    downloadItemUuid
+            );
+            return ResponseEntity.notFound().build();
+        }
+
+
         Metadata metadata = item.getMetadata();
+
+        log.info(
+                "Metadata from download item filename={}, id={}, encrypted={}",
+                metadata.getFilename(),
+                metadata.getId(),
+                metadata.isEncrypted()
+        );
+
+
         Path file = fileServiceManager.getFile(metadata);
+
+        log.info(
+                "Physical file resolved path={}, exists={}, size={}",
+                file,
+                Files.exists(file),
+                Files.exists(file) ? Files.size(file) : -1
+        );
+
+
         long fileSize = Files.size(file);
 
         String mimeType = guessMimeType(metadata.getFilename());
 
+        log.info(
+                "Preparing stream filename={}, mimeType={}, fileSize={}",
+                metadata.getFilename(),
+                mimeType,
+                fileSize
+        );
+
+
         if (rangeHeader == null) {
+
+            log.info("NORMAL DOWNLOAD mode");
+
             StreamingResponseBody stream = outputStream -> {
+
+                log.info(
+                        "STREAM START filename={}",
+                        metadata.getFilename()
+                );
+
                 try (InputStream input = Files.newInputStream(file)) {
-                    input.transferTo(outputStream);
+                    long copied = input.transferTo(outputStream);
+
+                    log.info(
+                            "STREAM FINISHED filename={}, bytesSent={}",
+                            metadata.getFilename(),
+                            copied
+                    );
+                } catch (Exception e) {
+                    log.error(
+                            "STREAM FAILED filename={}",
+                            metadata.getFilename(),
+                            e
+                    );
+                    throw e;
                 }
             };
+
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(mimeType))
@@ -255,32 +357,86 @@ public class FileStorageApiController {
                     .body(stream);
         }
 
+
+        log.info(
+                "RANGE DOWNLOAD mode range={}",
+                rangeHeader
+        );
+
+
         String[] ranges = rangeHeader.replace("bytes=", "").split("-");
+
         long start = Long.parseLong(ranges[0]);
+
         long end = ranges.length > 1 && !ranges[1].isEmpty()
                 ? Long.parseLong(ranges[1])
                 : fileSize - 1;
 
+
         long contentLength = end - start + 1;
 
+
+        log.info(
+                "Range parsed start={}, end={}, contentLength={}, fileSize={}",
+                start,
+                end,
+                contentLength,
+                fileSize
+        );
+
+
         StreamingResponseBody stream = outputStream -> {
+
+            log.info(
+                    "RANGE STREAM START start={}, end={}",
+                    start,
+                    end
+            );
+
             try (RandomAccessFile raf = new RandomAccessFile(file.toFile(), "r")) {
+
                 raf.seek(start);
+
                 byte[] buffer = new byte[1024 * 1024];
+
                 long remaining = contentLength;
+                long sent = 0;
+
+
                 while (remaining > 0) {
+
                     int read = raf.read(
                             buffer,
                             0,
                             (int) Math.min(buffer.length, remaining)
                     );
 
-                    if (read == -1)
+
+                    if (read == -1) {
                         break;
+                    }
+
 
                     outputStream.write(buffer, 0, read);
+
+                    sent += read;
                     remaining -= read;
                 }
+
+
+                log.info(
+                        "RANGE STREAM FINISHED sent={}, expected={}",
+                        sent,
+                        contentLength
+                );
+
+
+            } catch (Exception e) {
+                log.error(
+                        "RANGE STREAM FAILED",
+                        e
+                );
+                throw e;
             }
         };
 
@@ -302,7 +458,6 @@ public class FileStorageApiController {
                 .contentLength(contentLength)
                 .body(stream);
     }
-
 
     @GetMapping("/download")
     public ResponseEntity<UrlResource> downloadFile(@RequestParam UUID uuid, HttpServletResponse response) throws IOException {
