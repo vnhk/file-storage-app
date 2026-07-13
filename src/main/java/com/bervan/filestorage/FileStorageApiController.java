@@ -232,9 +232,6 @@ public class FileStorageApiController {
 
         String mimeType = guessMimeType(metadata.getFilename());
 
-        item.markDownloaded();
-        fileCache.remove(downloadItemUuid);
-
         if (rangeHeader == null) {
             StreamingResponseBody stream = outputStream -> {
                 try (InputStream input = Files.newInputStream(file)) {
@@ -246,9 +243,14 @@ public class FileStorageApiController {
                     .contentType(MediaType.parseMediaType(mimeType))
                     .contentLength(fileSize)
                     .header(
+                            HttpHeaders.ACCEPT_RANGES,
+                            "bytes"
+                    )
+                    .header(
                             HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + metadata.getFilename() + "\""
-                    ).body(stream);
+                            "inline; filename=\"" + metadata.getFilename() + "\""
+                    )
+                    .body(stream);
         }
 
         String[] ranges = rangeHeader.replace("bytes=", "").split("-");
@@ -290,6 +292,10 @@ public class FileStorageApiController {
                 .header(
                         HttpHeaders.ACCEPT_RANGES,
                         "bytes"
+                )
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" + metadata.getFilename() + "\""
                 )
                 .contentLength(contentLength)
                 .body(stream);
