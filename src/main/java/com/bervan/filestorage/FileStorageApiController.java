@@ -221,7 +221,8 @@ public class FileStorageApiController {
     @PermitAll
     public ResponseEntity<StreamingResponseBody> streamDownload(
             @RequestParam UUID downloadItemUuid,
-            @RequestHeader(value = "Range", required = false) String rangeHeader)
+            @RequestHeader(value = "Range", required = false) String rangeHeader,
+            @RequestParam(defaultValue = "false") boolean download)
             throws IOException {
         DownloadItem item = fileCache.get(downloadItemUuid);
         if (item == null || item.expired()) {
@@ -250,7 +251,8 @@ public class FileStorageApiController {
                     )
                     .header(
                             HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename=\"" + metadata.getFilename() + "\""
+                            (download ? "attachment" : "inline")
+                                    + "; filename=\"" + metadata.getFilename() + "\""
                     )
                     .body(stream);
         }
@@ -297,7 +299,8 @@ public class FileStorageApiController {
                 )
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"" + metadata.getFilename() + "\""
+                        (download ? "attachment" : "inline")
+                                + "; filename=\"" + metadata.getFilename() + "\""
                 )
                 .contentLength(contentLength)
                 .body(stream);
