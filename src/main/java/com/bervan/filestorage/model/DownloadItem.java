@@ -6,7 +6,6 @@ import java.time.temporal.ChronoUnit;
 public class DownloadItem {
     private final Metadata metadata;
     private final Instant createdAt;
-    private boolean downloaded;
 
     public DownloadItem(Metadata metadata) {
         this.metadata = metadata;
@@ -15,14 +14,6 @@ public class DownloadItem {
 
     public boolean expired() {
         return createdAt.plus(24, ChronoUnit.HOURS).isBefore(Instant.now());
-    }
-
-    public boolean alreadyDownloaded() {
-        return downloaded;
-    }
-
-    public void markDownloaded() {
-        this.downloaded = true;
     }
 
     public Metadata getMetadata() {

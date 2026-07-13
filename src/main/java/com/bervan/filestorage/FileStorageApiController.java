@@ -6,6 +6,7 @@ import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB;
 import com.bervan.logging.JsonLogger;
+import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.core.io.UrlResource;
@@ -217,12 +218,13 @@ public class FileStorageApiController {
     }
 
     @GetMapping("/stream-download")
+    @PermitAll
     public ResponseEntity<StreamingResponseBody> streamDownload(
             @RequestParam UUID downloadItemUuid,
             @RequestHeader(value = "Range", required = false) String rangeHeader)
             throws IOException {
         DownloadItem item = fileCache.get(downloadItemUuid);
-        if (item == null || item.expired() || item.alreadyDownloaded()) {
+        if (item == null || item.expired()) {
             return ResponseEntity.notFound().build();
         }
 
