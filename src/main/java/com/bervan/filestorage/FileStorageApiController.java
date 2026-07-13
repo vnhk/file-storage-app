@@ -1,8 +1,10 @@
 package com.bervan.filestorage;
 
+import com.bervan.filestorage.model.DownloadItem;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
+import com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB;
 import com.bervan.logging.JsonLogger;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -13,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -22,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.zip.Deflater;
 import java.util.zip.ZipOutputStream;
@@ -33,11 +37,12 @@ public class FileStorageApiController {
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileServiceManager fileServiceManager;
     private final FileEncryptionService fileEncryptionService;
-    private final com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
+    private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
+    private final Map<UUID, DownloadItem> fileCache = new ConcurrentHashMap<>();
 
     public FileStorageApiController(FileServiceManager fileServiceManager,
                                     FileEncryptionService fileEncryptionService,
-                                    com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
+                                    LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
         this.fileServiceManager = fileServiceManager;
         this.fileEncryptionService = fileEncryptionService;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
@@ -199,6 +204,97 @@ public class FileStorageApiController {
             return getResponseEntityForNonImages(uuid, session, metadata, file);
         }
     }
+
+    @PostMapping("/create-stream-download")
+    public ResponseEntity<UUID> createStreamDownload(
+            @RequestParam UUID metadataUuid) {
+
+        Metadata metadata = fileServiceManager.getMetadata(metadataUuid);
+        UUID downloadId = UUID.randomUUID();
+        fileCache.put(downloadId, new DownloadItem(metadata));
+
+        return ResponseEntity.ok(downloadId);
+    }
+
+    @GetMapping("/stream-download")
+    public ResponseEntity<StreamingResponseBody> streamDownload(
+            @RequestParam UUID downloadItemUuid,
+            @RequestHeader(value = "Range", required = false) String rangeHeader)
+            throws IOException {
+        DownloadItem item = fileCache.get(downloadItemUuid);
+        if (item == null || item.expired() || item.alreadyDownloaded()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Metadata metadata = item.getMetadata();
+        Path file = fileServiceManager.getFile(metadata);
+        long fileSize = Files.size(file);
+
+        String mimeType = guessMimeType(metadata.getFilename());
+
+        item.markDownloaded();
+        fileCache.remove(downloadItemUuid);
+
+        if (rangeHeader == null) {
+            StreamingResponseBody stream = outputStream -> {
+                try (InputStream input = Files.newInputStream(file)) {
+                    input.transferTo(outputStream);
+                }
+            };
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(mimeType))
+                    .contentLength(fileSize)
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + metadata.getFilename() + "\""
+                    ).body(stream);
+        }
+
+        String[] ranges = rangeHeader.replace("bytes=", "").split("-");
+        long start = Long.parseLong(ranges[0]);
+        long end = ranges.length > 1 && !ranges[1].isEmpty()
+                ? Long.parseLong(ranges[1])
+                : fileSize - 1;
+
+        long contentLength = end - start + 1;
+
+        StreamingResponseBody stream = outputStream -> {
+            try (RandomAccessFile raf = new RandomAccessFile(file.toFile(), "r")) {
+                raf.seek(start);
+                byte[] buffer = new byte[1024 * 1024];
+                long remaining = contentLength;
+                while (remaining > 0) {
+                    int read = raf.read(
+                            buffer,
+                            0,
+                            (int) Math.min(buffer.length, remaining)
+                    );
+
+                    if (read == -1)
+                        break;
+
+                    outputStream.write(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+        };
+
+
+        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(
+                        HttpHeaders.CONTENT_RANGE,
+                        "bytes " + start + "-" + end + "/" + fileSize
+                )
+                .header(
+                        HttpHeaders.ACCEPT_RANGES,
+                        "bytes"
+                )
+                .contentLength(contentLength)
+                .body(stream);
+    }
+
 
     @GetMapping("/download")
     public ResponseEntity<UrlResource> downloadFile(@RequestParam UUID uuid, HttpServletResponse response) throws IOException {
