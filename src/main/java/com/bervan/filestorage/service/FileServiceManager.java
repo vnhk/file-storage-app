@@ -9,6 +9,8 @@ import com.bervan.common.service.BaseService;
 import com.bervan.filestorage.model.BervanMockMultiPartFile;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
+import com.bervan.filestorage.model.TrashConflictException;
+import com.bervan.filestorage.model.TrashZipConflictException;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
@@ -68,6 +70,10 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 //    }
 
     public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path) throws IOException {
+        return saveAndExtractZip(file, description, path, false);
+    }
+
+    public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path, boolean overwriteTrash) throws IOException {
         if (!file.getOriginalFilename().endsWith(".zip")) {
             throw new RuntimeException("File is not a zip!");
         }
@@ -81,6 +87,44 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             String fileNameTmp = fileDiskStorageService.storeTmp(file, pathParts[pathParts.length - 1]);
 
             zipFile = fileDiskStorageService.getTmpFile(fileNameTmp);
+
+            // Pre-scan zip entries to detect conflicts with trashed items
+            List<TrashZipConflictException.TrashConflictItem> conflicts = new ArrayList<>();
+            try (ZipInputStream scanZis = new ZipInputStream(Files.newInputStream(zipFile))) {
+                ZipEntry entry;
+                while ((entry = scanZis.getNextEntry()) != null) {
+                    if (entry.getName().startsWith("__") || entry.getName().startsWith(".") || entry.isDirectory()) {
+                        continue;
+                    }
+                    String[] entryParts = entry.getName().split(Pattern.quote(File.separator));
+                    String baseDestinationPath = path;
+                    for (int i = 0; i < entryParts.length - 1; i++) {
+                        baseDestinationPath = baseDestinationPath + File.separator + entryParts[i];
+                    }
+                    String cleanDestPath = baseDestinationPath.endsWith(File.separator) ? baseDestinationPath : baseDestinationPath + File.separator;
+                    String entryFilename = entryParts[entryParts.length - 1];
+
+                    List<Metadata> trashed = fileDBStorageService.loadByPathAndFilenameInTrash(cleanDestPath, entryFilename);
+                    for (Metadata t : trashed) {
+                        conflicts.add(new TrashZipConflictException.TrashConflictItem(t.getId(), t.getFilename(), t.getPath()));
+                    }
+                    scanZis.closeEntry();
+                }
+            }
+
+            if (!conflicts.isEmpty()) {
+                if (!overwriteTrash) {
+                    throw new TrashZipConflictException(conflicts);
+                } else {
+                    for (TrashZipConflictException.TrashConflictItem conflict : conflicts) {
+                        Metadata m = getMetadata(conflict.getMetadataId());
+                        if (m != null) {
+                            deletePermanently(m);
+                        }
+                    }
+                }
+            }
+
             List<UploadResponse> uploadResponses = new ArrayList<>();
 
             try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
@@ -103,7 +147,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
                     log.info("File is SAVED as temp: " + extractedFilename + " in " + tempFilePath);
 
                     log.info("File is being processed " + extractedFilename + " in destination path: " + path);
-                    uploadResponses.add(processFile(tempFilePath, extractedFilename, description, path));
+                    uploadResponses.add(processFile(tempFilePath, extractedFilename, description, path, overwriteTrash));
                     log.info("File is processed " + extractedFilename + " in destination path: " + path);
 
                     zis.closeEntry();
@@ -111,6 +155,8 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             }
 
             uploadResponses.forEach(response -> savedFilesMetadata.addAll(response.getMetadata()));
+        } catch (TrashZipConflictException e) {
+            throw e;
         } catch (Exception e) {
             for (Metadata filesToBeReverted : savedFilesMetadata) {
                 Files.deleteIfExists(fileDiskStorageService.getFile(filesToBeReverted.getPath() + File.separator + filesToBeReverted.getFilename()));
@@ -127,10 +173,10 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         return uploadResponse;
     }
 
-    private UploadResponse processFile(Path tempFilePath, String extractedFilename, String description, String path) throws IOException {
+    private UploadResponse processFile(Path tempFilePath, String extractedFilename, String description, String path, boolean overwriteTrash) throws IOException {
         try {
             BervanMockMultiPartFile multipartFile = new BervanMockMultiPartFile(extractedFilename, extractedFilename, Files.probeContentType(tempFilePath), Files.newInputStream(tempFilePath));
-            return save(multipartFile, description, path);
+            return save(multipartFile, description, path, overwriteTrash);
         } finally {
             Files.delete(tempFilePath);
         }
@@ -138,6 +184,11 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public UploadResponse save(MultipartFile file, String description, String path) {
+        return save(file, description, path, false);
+    }
+
+    @Transactional
+    public UploadResponse save(MultipartFile file, String description, String path, boolean overwriteTrash) {
         log.info("FILE PATH SEPARATOR: " + File.separator);
         log.info("Saving file in DB and on a disk: " + path);
         UploadResponse uploadResponse = new UploadResponse();
@@ -162,6 +213,20 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         String filename = pathParts[pathParts.length - 1];
         log.info("New destination path: " + path);
         log.info("Extracted filename: " + filename);
+
+        // Check for collision with items in trash
+        String cleanDestPath = path.endsWith(File.separator) ? path : path + File.separator;
+        List<Metadata> trashedItems = fileDBStorageService.loadByPathAndFilenameInTrash(cleanDestPath, filename);
+        if (!trashedItems.isEmpty()) {
+            if (!overwriteTrash) {
+                Metadata trashed = trashedItems.get(0);
+                throw new TrashConflictException(trashed.getId(), trashed.getFilename(), trashed.getPath());
+            } else {
+                for (Metadata trashed : trashedItems) {
+                    deletePermanently(trashed);
+                }
+            }
+        }
 
         filename = fileDiskStorageService.store(file, path, filename);
         LocalDateTime createDate = LocalDateTime.now();
@@ -239,12 +304,55 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     }
 
     @Override
+    @Transactional
     public void delete(Metadata item) {
-        fileDBStorageService.delete(item);
+        log.info("Moving item to trash: {}{}", item.getPath(), item.getFilename());
+        fileDBStorageService.moveToTrash(item);
+    }
+
+    @Transactional
+    public void deletePermanently(Metadata item) {
+        log.info("Permanently deleting item: {}{}", item.getPath(), item.getFilename());
+        if (item.isDirectory()) {
+            String p = item.getPath() != null ? item.getPath() : "/";
+            String sep = "/".equals(p) ? "" : "/";
+            if (p.endsWith("/")) {
+                sep = "";
+            }
+            String childPath = p + sep + item.getFilename() + "/";
+            Set<Metadata> children = fileDBStorageService.loadAllByPathIncludingTrash(childPath);
+            for (Metadata child : children) {
+                deletePermanently(child);
+            }
+        }
+        fileDBStorageService.deletePermanently(item);
         try {
             fileDiskStorageService.delete(item.getPath(), item.getFilename());
         } catch (Exception e) {
-            log.error("Could not delete file from storage!", e);
+            log.error("Could not delete file from storage: " + item.getFilename(), e);
+        }
+    }
+
+    @Transactional
+    public void restoreFromTrash(Metadata item) {
+        log.info("Restoring item from trash: {}{}", item.getPath(), item.getFilename());
+        List<Metadata> active = fileDBStorageService.loadByPathAndFilename(item.getPath(), item.getFilename())
+                .stream().filter(m -> !m.isInTrash()).toList();
+        if (!active.isEmpty()) {
+            throw new IllegalStateException("Cannot restore: an active item with name '" + item.getFilename() + "' already exists in " + item.getPath());
+        }
+        fileDBStorageService.restoreFromTrash(item);
+    }
+
+    public Set<Metadata> loadTrash() {
+        return fileDBStorageService.loadTrash();
+    }
+
+    @Transactional
+    public void emptyTrash() {
+        Set<Metadata> trashItems = fileDBStorageService.loadTrash();
+        for (Metadata item : trashItems) {
+            deletePermanently(item);
         }
     }
 

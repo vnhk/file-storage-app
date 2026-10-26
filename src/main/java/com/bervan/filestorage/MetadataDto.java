@@ -18,4 +18,6 @@ public final class MetadataDto {
     private Long fileSize;
     private boolean encrypted;
     private String modificationDate;
+    private boolean inTrash;
+    private String inTrashStartDate;
 }

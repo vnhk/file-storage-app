@@ -46,22 +46,64 @@ public class FileDBStorageService {
     }
 
     public void delete(Metadata metadata) {
+        moveToTrash(metadata);
+    }
+
+    public void deletePermanently(Metadata metadata) {
         String path;
         if (metadata.getPath().endsWith(File.separator)) {
             path = metadata.getPath() + metadata.getFilename();
-
         } else {
             path = metadata.getPath() + File.separator + metadata.getFilename();
         }
-        log.info("Deleting metadata file: {}", path);
+        log.info("Permanently deleting metadata file: {}", path);
         if (metadata.isDirectory()) {
-            log.info("Deleting metadata directory: {}", path);
-            Set<Metadata> metadatas = loadByPath(path);
+            log.info("Permanently deleting metadata directory: {}", path);
+            Set<Metadata> metadatas = loadAllByPathIncludingTrash(path);
             for (Metadata m : metadatas) {
-                delete(m);
+                deletePermanently(m);
             }
         }
         fileEntityRepository.delete(metadata);
+    }
+
+    public void moveToTrash(Metadata metadata) {
+        String path;
+        if (metadata.getPath().endsWith(File.separator)) {
+            path = metadata.getPath() + metadata.getFilename();
+        } else {
+            path = metadata.getPath() + File.separator + metadata.getFilename();
+        }
+        log.info("Moving metadata to trash: {}", path);
+        if (metadata.isDirectory()) {
+            log.info("Moving metadata directory to trash: {}", path);
+            Set<Metadata> metadatas = loadAllByPathIncludingTrash(path);
+            for (Metadata m : metadatas) {
+                moveToTrash(m);
+            }
+        }
+        metadata.setInTrash(true);
+        metadata.setInTrashStartDate(LocalDateTime.now());
+        fileEntityRepository.save(metadata);
+    }
+
+    public void restoreFromTrash(Metadata metadata) {
+        String path;
+        if (metadata.getPath().endsWith(File.separator)) {
+            path = metadata.getPath() + metadata.getFilename();
+        } else {
+            path = metadata.getPath() + File.separator + metadata.getFilename();
+        }
+        log.info("Restoring metadata from trash: {}", path);
+        if (metadata.isDirectory()) {
+            Set<Metadata> metadatas = loadAllByPathIncludingTrash(path);
+            for (Metadata m : metadatas) {
+                restoreFromTrash(m);
+            }
+        }
+        metadata.setInTrash(false);
+        metadata.setInTrashStartDate(null);
+        fileEntityRepository.save(metadata);
     }
 
     public Set<Metadata> load() {
@@ -69,7 +111,23 @@ public class FileDBStorageService {
     }
 
     public Set<Metadata> loadByPath(String path) {
+        return fileEntityRepository.findByPathAndInTrashFalse(path);
+    }
+
+    public Set<Metadata> loadAllByPathIncludingTrash(String path) {
         return fileEntityRepository.findByPath(path);
+    }
+
+    public Set<Metadata> loadTrash() {
+        return fileEntityRepository.findByInTrashTrue();
+    }
+
+    public List<Metadata> loadByPathAndFilenameInTrash(String path, String filename) {
+        return fileEntityRepository.findByPathAndFilenameAndInTrashTrue(path, filename);
+    }
+
+    public List<Metadata> findExpiredTrash(LocalDateTime cutoff) {
+        return fileEntityRepository.findByInTrashTrueAndInTrashStartDateBefore(cutoff);
     }
 
     public List<Metadata> loadById(UUID id) {

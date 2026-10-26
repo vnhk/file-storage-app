@@ -38,6 +38,10 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
     private String encryptionIv;
     private String encryptionSalt;
     private String encryptionVerifier;
+    @Column(name = "in_trash", nullable = false)
+    private boolean inTrash = false;
+    @Column(name = "in_trash_start_date")
+    private LocalDateTime inTrashStartDate;
 
     public Metadata() {
 
@@ -198,6 +202,22 @@ public class Metadata extends BervanOwnedBaseEntity<UUID> implements Persistable
 
     public void setEncryptionVerifier(String encryptionVerifier) {
         this.encryptionVerifier = encryptionVerifier;
+    }
+
+    public boolean isInTrash() {
+        return inTrash;
+    }
+
+    public void setInTrash(boolean inTrash) {
+        this.inTrash = inTrash;
+    }
+
+    public LocalDateTime getInTrashStartDate() {
+        return inTrashStartDate;
+    }
+
+    public void setInTrashStartDate(LocalDateTime inTrashStartDate) {
+        this.inTrashStartDate = inTrashStartDate;
     }
 
     @Override

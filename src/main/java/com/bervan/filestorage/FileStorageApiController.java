@@ -2,6 +2,8 @@ package com.bervan.filestorage;
 
 import com.bervan.filestorage.model.DownloadItem;
 import com.bervan.filestorage.model.Metadata;
+import com.bervan.filestorage.model.TrashConflictException;
+import com.bervan.filestorage.model.TrashZipConflictException;
 import com.bervan.filestorage.service.FileEncryptionService;
 import com.bervan.filestorage.service.FileServiceManager;
 import com.bervan.filestorage.service.LoadStorageAndIntegrateWithDB;
@@ -61,10 +63,11 @@ public class FileStorageApiController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<List<MetadataDto>> upload(
+    public ResponseEntity<?> upload(
             @RequestParam(defaultValue = "/") String path,
             @RequestParam(defaultValue = "") String description,
             @RequestParam(defaultValue = "false") boolean extract,
+            @RequestParam(defaultValue = "false") boolean overwriteTrash,
             @RequestParam("files") List<MultipartFile> files
     ) {
         List<MetadataDto> saved = new ArrayList<>();
@@ -72,17 +75,91 @@ public class FileStorageApiController {
             try {
                 String name = file.getOriginalFilename() != null ? file.getOriginalFilename() : "";
                 if (extract && name.toLowerCase().endsWith(".zip")) {
-                    var response = fileServiceManager.saveAndExtractZip(file, description, path);
+                    var response = fileServiceManager.saveAndExtractZip(file, description, path, overwriteTrash);
                     response.getMetadata().forEach(m -> saved.add(toDto(m)));
                 } else {
-                    var response = fileServiceManager.save(file, description, path);
+                    var response = fileServiceManager.save(file, description, path, overwriteTrash);
                     response.getMetadata().forEach(m -> saved.add(toDto(m)));
                 }
+            } catch (TrashConflictException e) {
+                Map<String, Object> body = new HashMap<>();
+                body.put("conflict", true);
+                body.put("inTrash", true);
+                body.put("metadataId", e.getMetadataId().toString());
+                body.put("filename", e.getFilename());
+                body.put("path", e.getPath());
+                body.put("message", e.getMessage());
+                body.put("trashViewUrl", "/files?view=trash&highlight=" + e.getMetadataId());
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+            } catch (TrashZipConflictException e) {
+                Map<String, Object> body = new HashMap<>();
+                body.put("conflict", true);
+                body.put("inTrash", true);
+                body.put("zipConflict", true);
+                body.put("conflicts", e.getConflicts());
+                body.put("message", e.getMessage());
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
             } catch (Exception e) {
+                log.error("Failed to upload file", e);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
             }
         }
         return ResponseEntity.ok(saved);
+    }
+
+    @GetMapping("/trash")
+    public ResponseEntity<List<MetadataDto>> listTrash() {
+        Set<Metadata> items = fileServiceManager.loadTrash();
+        List<MetadataDto> result = items.stream()
+                .sorted(Comparator.comparing(Metadata::getInTrashStartDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(this::toDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/trash/restore")
+    public ResponseEntity<Void> restoreFromTrash(@RequestBody List<UUID> ids) {
+        try {
+            for (UUID id : ids) {
+                Metadata m = fileServiceManager.getMetadata(id);
+                if (m != null) {
+                    fileServiceManager.restoreFromTrash(m);
+                }
+            }
+            return ResponseEntity.ok().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (Exception e) {
+            log.error("Failed to restore items from trash", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/trash/permanent")
+    public ResponseEntity<Void> deletePermanently(@RequestBody List<UUID> ids) {
+        try {
+            for (UUID id : ids) {
+                Metadata m = fileServiceManager.getMetadata(id);
+                if (m != null) {
+                    fileServiceManager.deletePermanently(m);
+                }
+            }
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.error("Failed to permanently delete items", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @DeleteMapping("/trash/empty")
+    public ResponseEntity<Void> emptyTrash() {
+        try {
+            fileServiceManager.emptyTrash();
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.error("Failed to empty trash", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping("/folder")
@@ -584,7 +661,9 @@ public class FileStorageApiController {
                 m.getExtension(),
                 m.getFileSize(),
                 m.isEncrypted(),
-                m.getModificationDate() != null ? m.getModificationDate().toString() : null
+                m.getModificationDate() != null ? m.getModificationDate().toString() : null,
+                m.isInTrash(),
+                m.getInTrashStartDate() != null ? m.getInTrashStartDate().toString() : null
         );
     }
 
