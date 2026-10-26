@@ -442,4 +442,65 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
             log.warn("File does not exist or is not a regular file on disk: " + (file != null ? file.toString() : "null") + " for metadata: " + fileMeta.getFilename());
         }
     }
+
+    @Transactional
+    public Long calculateAndUpdateFolderSize(UUID folderId) {
+        Metadata folder = getMetadata(folderId);
+        if (folder == null) {
+            throw new IllegalArgumentException("Folder not found: " + folderId);
+        }
+        if (!folder.isDirectory()) {
+            return folder.getFileSize() != null ? folder.getFileSize() : 0L;
+        }
+
+        long totalSize = calculateDirectorySizeRecursive(folder);
+        folder.setFileSize(totalSize);
+        updateMetadata(folder);
+        return totalSize;
+    }
+
+    private long calculateDirectorySizeRecursive(Metadata folder) {
+        String p = folder.getPath() != null ? folder.getPath() : "/";
+        String sep = "/".equals(p) ? "" : "/";
+        if (p.endsWith("/")) {
+            sep = "";
+        }
+        String childPath = p + sep + folder.getFilename() + "/";
+
+        Set<Metadata> children = loadByPath(childPath);
+        if (children == null || children.isEmpty()) {
+            return 0L;
+        }
+
+        long totalSum = 0L;
+        for (Metadata child : children) {
+            if (child.isDirectory()) {
+                // Recursively compute subfolder size and persist it
+                long subFolderSize = calculateDirectorySizeRecursive(child);
+                child.setFileSize(subFolderSize);
+                updateMetadata(child);
+                totalSum += subFolderSize;
+            } else {
+                long size = (child.getFileSize() != null && child.getFileSize() > 0)
+                        ? child.getFileSize()
+                        : 0L;
+
+                // Fallback to disk if fileSize is not set in DB
+                if (size == 0L) {
+                    try {
+                        Path file = getFile(child);
+                        if (java.nio.file.Files.exists(file) && java.nio.file.Files.isRegularFile(file)) {
+                            size = java.nio.file.Files.size(file);
+                            child.setFileSize(size);
+                            updateMetadata(child);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Could not determine file size from disk for: " + child.getFilename(), e);
+                    }
+                }
+                totalSum += size;
+            }
+        }
+        return totalSum;
+    }
 }

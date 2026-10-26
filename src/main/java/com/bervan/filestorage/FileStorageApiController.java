@@ -139,6 +139,17 @@ public class FileStorageApiController {
         return ResponseEntity.ok(dirs.stream().map(this::toDto).collect(Collectors.toList()));
     }
 
+    @PostMapping("/{id}/calculate-size")
+    public ResponseEntity<Long> calculateFolderSize(@PathVariable UUID id) {
+        try {
+            Long totalSize = fileServiceManager.calculateAndUpdateFolderSize(id);
+            return ResponseEntity.ok(totalSize);
+        } catch (Exception e) {
+            log.error("Failed to calculate folder size for: " + id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @PostMapping("/{id}/unlock")
     public ResponseEntity<Void> unlockFile(@PathVariable UUID id,
                                            @RequestParam String password,
