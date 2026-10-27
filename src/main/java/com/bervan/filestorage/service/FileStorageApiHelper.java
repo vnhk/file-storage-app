@@ -126,6 +126,7 @@ public class FileStorageApiHelper {
         if (lower.endsWith(".mkv")) return "video/x-matroska";
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
         if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic";
         if (lower.endsWith(".gif")) return "image/gif";
         if (lower.endsWith(".pdf")) return "application/pdf";
         if (lower.endsWith(".txt") || lower.endsWith(".md")) return "text/plain";
