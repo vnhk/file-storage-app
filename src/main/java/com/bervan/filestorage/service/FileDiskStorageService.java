@@ -291,28 +291,39 @@ public class FileDiskStorageService {
     }
 
     public void delete(String path, String filename) {
+        if (filename == null || filename.isBlank() || ".".equals(filename) || "..".equals(filename) || "/".equals(filename)) {
+            log.error("SAFETY GUARD: Refusing to delete with invalid filename: '{}' at path: '{}'", filename, path);
+            throw new IllegalArgumentException("Refusing to delete with invalid filename: " + filename);
+        }
         String FOLDER = getStorageFolderPath(path);
         path = FOLDER + File.separator + path.replaceAll(FOLDER, "");
         Path targetPath = Paths.get(path, filename);
-        try {
-            if (Files.exists(targetPath)) {
-                Files.walkFileTree(targetPath, new SimpleFileVisitor<>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        Files.delete(file);
-                        return FileVisitResult.CONTINUE;
-                    }
+        Path rootStorage = Paths.get(FOLDER).toAbsolutePath().normalize();
+        Path normalizedTarget = targetPath.toAbsolutePath().normalize();
 
-                    @Override
-                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                        Files.delete(dir);
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-            } else {
-                log.error("File or directory does not exists!");
-                throw new RuntimeException("File or directory does not exists!");
+        if (normalizedTarget.equals(rootStorage) || normalizedTarget.getNameCount() <= rootStorage.getNameCount()) {
+            log.error("SAFETY GUARD: Refusing to delete storage root or parent directory: '{}'", normalizedTarget);
+            throw new IllegalArgumentException("Refusing to delete storage root or parent directory: " + normalizedTarget);
+        }
+
+        try {
+            if (!Files.exists(normalizedTarget)) {
+                log.info("File or directory already does not exist on disk: {}", normalizedTarget);
+                return;
             }
+            Files.walkFileTree(normalizedTarget, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         } catch (IOException e) {
             log.warn("Cannot delete! " + e.getMessage());
             throw new RuntimeException(e);

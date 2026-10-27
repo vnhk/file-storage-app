@@ -57,9 +57,15 @@ public class TrashCleanupScheduler {
             log.info("Found {} expired trash items to permanently delete.", expiredItems.size());
             for (Metadata item : expiredItems) {
                 try {
-                    fileServiceManager.deletePermanently(item);
+                    // Safety guard: ensure item is strictly marked as in trash before deleting
+                    if (item != null && Boolean.TRUE.equals(item.isInTrash())) {
+                        fileServiceManager.deletePermanently(item);
+                    } else {
+                        log.warn("SAFETY GUARD: Skipping item during scheduled cleanup because inTrash is not true: {}",
+                                item != null ? item.getFilename() : "null");
+                    }
                 } catch (Exception e) {
-                    log.error("Failed to permanently delete expired trash item: " + item.getFilename(), e);
+                    log.error("Failed to permanently delete expired trash item: " + (item != null ? item.getFilename() : "null"), e);
                 }
             }
         } catch (Exception e) {

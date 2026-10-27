@@ -146,10 +146,17 @@ public class FileStorageApiController {
             for (UUID id : ids) {
                 Metadata m = fileServiceManager.getMetadata(id);
                 if (m != null) {
+                    if (!Boolean.TRUE.equals(m.isInTrash())) {
+                        log.error("SAFETY GUARD: Rejecting permanent deletion of item not in trash: {}", id);
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+                    }
                     fileServiceManager.deletePermanently(m);
                 }
             }
             return ResponseEntity.ok().build();
+        } catch (IllegalStateException e) {
+            log.error("Safety guard triggered: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         } catch (Exception e) {
             log.error("Failed to permanently delete items", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

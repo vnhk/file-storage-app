@@ -312,17 +312,29 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public void deletePermanently(Metadata item) {
+        if (item == null) {
+            return;
+        }
+
+        // Additional safety check: ensure inTrash is strictly true (neither null nor false)
+        if (!Boolean.TRUE.equals(item.isInTrash())) {
+            log.error("SAFETY GUARD: Refusing to permanently delete item that is NOT in trash! Id: {}, Path: {}{}, inTrash: {}",
+                    item.getId(), item.getPath(), item.getFilename(), item.isInTrash());
+            throw new IllegalStateException("SAFETY GUARD: Cannot permanently delete item '" + item.getFilename() +
+                    "' because inTrash is not true (value: " + item.isInTrash() + ")!");
+        }
+
         log.info("Permanently deleting item: {}{}", item.getPath(), item.getFilename());
         if (item.isDirectory()) {
             String p = item.getPath() != null ? item.getPath() : "/";
-            String sep = "/".equals(p) ? "" : "/";
-            if (p.endsWith("/")) {
-                sep = "";
-            }
-            String childPath = p + sep + item.getFilename() + "/";
+            if (!p.startsWith("/")) p = "/" + p;
+            if (!p.endsWith("/")) p = p + "/";
+            String childPath = p + item.getFilename() + "/";
             Set<Metadata> children = fileDBStorageService.loadAllByPathIncludingTrash(childPath);
             for (Metadata child : children) {
-                deletePermanently(child);
+                if (Boolean.TRUE.equals(child.isInTrash())) {
+                    deletePermanently(child);
+                }
             }
         }
         fileDBStorageService.deletePermanently(item);
@@ -351,8 +363,14 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     @Transactional
     public void emptyTrash() {
         Set<Metadata> trashItems = fileDBStorageService.loadTrash();
+        log.info("Emptying trash: found {} items to delete permanently.", trashItems.size());
         for (Metadata item : trashItems) {
-            deletePermanently(item);
+            if (item != null && Boolean.TRUE.equals(item.isInTrash())) {
+                deletePermanently(item);
+            } else {
+                log.warn("SAFETY GUARD: Skipping item during emptyTrash because inTrash is not true: {}",
+                        item != null ? item.getFilename() : "null");
+            }
         }
     }
 

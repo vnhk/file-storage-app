@@ -49,17 +49,32 @@ public class FileDBStorageService {
         moveToTrash(metadata);
     }
 
-    public void deletePermanently(Metadata metadata) {
-        String path;
-        if (metadata.getPath().endsWith(File.separator)) {
-            path = metadata.getPath() + metadata.getFilename();
-        } else {
-            path = metadata.getPath() + File.separator + metadata.getFilename();
+    private String getDirectoryChildPath(Metadata metadata) {
+        String p = metadata.getPath() != null ? metadata.getPath() : "/";
+        if (!p.startsWith("/")) {
+            p = "/" + p;
         }
-        log.info("Permanently deleting metadata file: {}", path);
+        if (!p.endsWith("/")) {
+            p = p + "/";
+        }
+        return p + metadata.getFilename() + "/";
+    }
+
+    public void deletePermanently(Metadata metadata) {
+        if (metadata == null) return;
+
+        // Additional safety check: ensure inTrash is strictly true
+        if (!Boolean.TRUE.equals(metadata.isInTrash())) {
+            log.error("SAFETY GUARD: Refusing to permanently delete metadata that is NOT in trash! Id: {}, Path: {}{}, inTrash: {}",
+                    metadata.getId(), metadata.getPath(), metadata.getFilename(), metadata.isInTrash());
+            throw new IllegalStateException("SAFETY GUARD: Cannot permanently delete item because inTrash is not true!");
+        }
+
+        log.info("Permanently deleting metadata item: {}{}", metadata.getPath(), metadata.getFilename());
         if (metadata.isDirectory()) {
-            log.info("Permanently deleting metadata directory: {}", path);
-            Set<Metadata> metadatas = loadAllByPathIncludingTrash(path);
+            String childPath = getDirectoryChildPath(metadata);
+            log.info("Permanently deleting metadata directory contents: {}", childPath);
+            Set<Metadata> metadatas = loadAllByPathIncludingTrash(childPath);
             for (Metadata m : metadatas) {
                 deletePermanently(m);
             }
@@ -68,16 +83,12 @@ public class FileDBStorageService {
     }
 
     public void moveToTrash(Metadata metadata) {
-        String path;
-        if (metadata.getPath().endsWith(File.separator)) {
-            path = metadata.getPath() + metadata.getFilename();
-        } else {
-            path = metadata.getPath() + File.separator + metadata.getFilename();
-        }
-        log.info("Moving metadata to trash: {}", path);
+        if (metadata == null) return;
+        log.info("Moving metadata to trash: {}{}", metadata.getPath(), metadata.getFilename());
         if (metadata.isDirectory()) {
-            log.info("Moving metadata directory to trash: {}", path);
-            Set<Metadata> metadatas = loadAllByPathIncludingTrash(path);
+            String childPath = getDirectoryChildPath(metadata);
+            log.info("Moving metadata directory contents to trash: {}", childPath);
+            Set<Metadata> metadatas = loadAllByPathIncludingTrash(childPath);
             for (Metadata m : metadatas) {
                 moveToTrash(m);
             }
@@ -88,15 +99,12 @@ public class FileDBStorageService {
     }
 
     public void restoreFromTrash(Metadata metadata) {
-        String path;
-        if (metadata.getPath().endsWith(File.separator)) {
-            path = metadata.getPath() + metadata.getFilename();
-        } else {
-            path = metadata.getPath() + File.separator + metadata.getFilename();
-        }
-        log.info("Restoring metadata from trash: {}", path);
+        if (metadata == null) return;
+        log.info("Restoring metadata from trash: {}{}", metadata.getPath(), metadata.getFilename());
         if (metadata.isDirectory()) {
-            Set<Metadata> metadatas = loadAllByPathIncludingTrash(path);
+            String childPath = getDirectoryChildPath(metadata);
+            log.info("Restoring metadata directory contents from trash: {}", childPath);
+            Set<Metadata> metadatas = loadAllByPathIncludingTrash(childPath);
             for (Metadata m : metadatas) {
                 restoreFromTrash(m);
             }
