@@ -414,6 +414,17 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public void renameFile(Metadata metadata, String newFilename) {
+        String cleanPath = metadata.getPath();
+        if (cleanPath != null && !cleanPath.endsWith(File.separator)) {
+            cleanPath += File.separator;
+        }
+        List<Metadata> existingInDb = fileDBStorageService.loadByPathAndFilename(cleanPath, newFilename)
+                .stream().filter(m -> !Boolean.TRUE.equals(m.isInTrash()) && !m.getId().equals(metadata.getId()))
+                .toList();
+        if (!existingInDb.isEmpty()) {
+            throw new IllegalArgumentException("File with name '" + newFilename + "' already exists in " + cleanPath);
+        }
+
         Path source = getFile(metadata);
         fileDiskStorageService.renameFile(source, newFilename);
         String oldExtension = metadata.getExtension();

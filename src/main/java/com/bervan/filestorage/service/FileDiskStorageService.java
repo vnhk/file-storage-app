@@ -370,7 +370,7 @@ public class FileDiskStorageService {
     public void renameFile(Path source, String newName) {
         try {
             Path target = source.resolveSibling(newName);
-            Files.move(source, target);
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
             log.info("Renamed: " + source + " -> " + target);
         } catch (IOException e) {
             log.error("Failed to rename: " + source + " to " + newName, e);
