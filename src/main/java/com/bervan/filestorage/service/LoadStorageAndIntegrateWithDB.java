@@ -79,7 +79,7 @@ public class LoadStorageAndIntegrateWithDB {
             List<Metadata> batch = list.subList(i, end);
             log.info("Batch delete files in folder: " + batch.size());
             try {
-                fileDBStorageService.deleteBatch(batch);
+                fileDBStorageService.deleteBatchPermanently(batch);
             } catch (Exception e) {
                 log.error("Error while delete files in folder: " + batch, e);
             }

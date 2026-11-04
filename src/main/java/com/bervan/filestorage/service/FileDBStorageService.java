@@ -164,8 +164,9 @@ public class FileDBStorageService {
     }
 
     @Transactional
-    public void deleteBatch(List<Metadata> batch) {
-        batch.forEach(this::delete); // each batch in one transaction
+    public void deleteBatchPermanently(List<Metadata> batch) {
+        batch.forEach(this::delete);
+        batch.forEach(this::deletePermanently); // each batch in one transaction
     }
 
     @Transactional
