@@ -104,11 +104,20 @@ public class LoadStorageAndIntegrateWithDB {
     }
 
     private String describeBatch(List<Metadata> batch) {
-        if (batch.size() <= 50) {
-            return batch.stream().map(file -> file.getPath() + file.getFilename()).sorted().toList().toString();
+        Map<String, List<String>> filesByDirectory = new TreeMap<>();
+        for (Metadata file : batch) {
+            filesByDirectory.computeIfAbsent(file.getPath(), path -> new ArrayList<>())
+                    .add(file.getFilename());
         }
-        return batch.size() + " entries in parent directories: "
-                + batch.stream().map(Metadata::getPath).distinct().sorted().toList();
+        List<String> descriptions = new ArrayList<>();
+        filesByDirectory.forEach((directory, filenames) -> {
+            if (filenames.size() > 50) {
+                descriptions.add(directory + " (" + filenames.size() + " entries)");
+            } else {
+                filenames.stream().sorted().forEach(filename -> descriptions.add(directory + filename));
+            }
+        });
+        return String.join(", ", descriptions);
     }
 
     private void batchUpdate(List<Metadata> list, int batchSize) {

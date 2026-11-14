@@ -28,6 +28,26 @@ class DirectorySynchronizationTest {
     }
 
     @Test
+    void summarizesEachDirectorySeparatelyAtTheFiftyEntryBoundary() {
+        LoadStorageAndIntegrateWithDB sync = new LoadStorageAndIntegrateWithDB(
+                mock(FileDBStorageService.class), disk(), mock(UserRepository.class));
+        List<Metadata> entries = new java.util.ArrayList<>();
+        for (int i = 0; i < 51; i++) {
+            entries.add(new Metadata("/Large/", "file-" + i, null, LocalDateTime.MIN, false));
+        }
+        for (int i = 0; i < 50; i++) {
+            entries.add(new Metadata("/Small/", "file-" + i, null, LocalDateTime.MIN, false));
+        }
+        String description = ReflectionTestUtils.invokeMethod(sync, "describeBatch", entries);
+        assertNotNull(description);
+        assertTrue(description.contains("/Large/ (51 entries)"));
+        assertFalse(description.contains("/Large/file-"));
+        for (int i = 0; i < 50; i++) {
+            assertTrue(description.contains("/Small/file-" + i));
+        }
+    }
+
+    @Test
     void scansOnlySelectedSubtreeAndPreservesRepeatedNames() throws Exception {
         Files.createDirectories(root.resolve("Photos/Photos"));
         Files.writeString(root.resolve("Photos/Photos/Photos"), "test");
