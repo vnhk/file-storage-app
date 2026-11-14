@@ -118,6 +118,10 @@ public class FileDBStorageService {
         return new HashSet<>(fileEntityRepository.findAll());
     }
 
+    public Set<Metadata> loadAllByPathPrefix(String path) {
+        return fileEntityRepository.findByPathStartingWith(path);
+    }
+
     public Set<Metadata> loadByPath(String path) {
         return fileEntityRepository.findByPathAndInTrashFalse(path);
     }

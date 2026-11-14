@@ -138,12 +138,25 @@ public class FileDiskStorageService {
         return fileName;
     }
 
-    public List<Metadata> getAllFilesInFolder() {
+    public List<Metadata> getAllFilesInFolder(String directory) {
         List<Metadata> fileInfos = new ArrayList<>();
         for (String FOLDER : FOLDERS) {
             try {
                 String path = folderMapping.get(FOLDER);
-                scanDirectory(new File(path), fileInfos, path);
+                Path root = Paths.get(path).toAbsolutePath().normalize();
+                if (!Files.isDirectory(root) || !Files.isReadable(root)) {
+                    throw new IOException("Storage root is unavailable: " + root);
+                }
+                Path selected = root.resolve(directory.substring(1)).normalize();
+                if (!selected.startsWith(root)) {
+                    throw new IOException("Directory is outside the storage root");
+                }
+                if (Files.exists(selected)) {
+                    if (!Files.isDirectory(selected)) {
+                        throw new IOException("Not a directory: " + selected);
+                    }
+                    scanDirectory(selected.toFile(), fileInfos, root.toString());
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -233,17 +246,13 @@ public class FileDiskStorageService {
     }
 
     private String getAbsolutePathThatHaveToBeSavedInMetadata(File file, final String PATH_MAPPING) {
-        String absolutePath = file.getAbsolutePath();
-        absolutePath = absolutePath.replace(PATH_MAPPING, "");
-        String FOLDER = getStorageFolderPath(absolutePath);
-        absolutePath = absolutePath.replace(FOLDER, "").replace(file.getName(), "");
-        if (!absolutePath.startsWith(File.separator)) {
-            absolutePath = File.separator + absolutePath;
+        Path root = Paths.get(PATH_MAPPING).toAbsolutePath().normalize();
+        Path parent = file.toPath().toAbsolutePath().normalize().getParent();
+        if (parent == null || !parent.startsWith(root)) {
+            throw new IllegalArgumentException("File is outside the storage root: " + file);
         }
-
-        if (!absolutePath.endsWith(File.separator)) {
-            absolutePath = absolutePath + File.separator;
-        }
+        String relativeParent = root.relativize(parent).toString().replace('\\', '/');
+        String absolutePath = relativeParent.isEmpty() ? "/" : "/" + relativeParent + "/";
         return absolutePath;
     }
 

@@ -36,8 +36,10 @@ Web-based file management system with dual storage: files on disk + metadata in 
 - Store/update/delete metadata, batch operations
 
 #### LoadStorageAndIntegrateWithDB (Sync)
-- `synchronizeStorageWithDB()` - bidirectional sync between disk and DB
+- `synchronizeStorageWithDB(directory)` - synchronizes disk contents and metadata within a directory and its descendants; "/" covers all storage roots
 - Batch processing (100 items/batch)
+- Explicit synchronization restores matching trashed records whose files remain on disk.
+- Metadata is queried by the normalized directory prefix, including a trailing slash.
 
 ### REST API
 - `GET /file-storage-app/files/download?uuid={uuid}` - download file, supports byte ranges

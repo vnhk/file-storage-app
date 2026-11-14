@@ -29,8 +29,18 @@ public class LoadStorageAndIntegrateWithDB {
 //
 //    }
 
-    public void synchronizeStorageWithDB() {
-        List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder();
+    public void synchronizeStorageWithDB(String directory) {
+        if (directory == null || !directory.startsWith("/") || directory.contains("\\")) {
+            throw new IllegalArgumentException("An absolute storage directory is required");
+        }
+        for (String component : directory.split("/")) {
+            if (component.equals("..") || component.equals(".")) {
+                throw new IllegalArgumentException("Relative path components are not allowed");
+            }
+        }
+        directory = java.nio.file.Path.of(directory).normalize().toString().replace('\\', '/');
+        if (!directory.endsWith("/")) directory += "/";
+        List<Metadata> allFilesInFolder = fileDiskStorageService.getAllFilesInFolder(directory);
 
         long count = allFilesInFolder.stream().filter(e -> e.getPath().isEmpty()).count();
         if (count != 0) {
@@ -48,7 +58,7 @@ public class LoadStorageAndIntegrateWithDB {
             allFilesInFolderMap.put(key, metadata);
         }
 
-        Set<Metadata> dbFiles = fileDBStorageService.load();
+        Set<Metadata> dbFiles = fileDBStorageService.loadAllByPathPrefix(directory);
         Set<String> filesPresentInDBAndFolder = new HashSet<>();
 
         List<Metadata> toDelete = new ArrayList<>();
@@ -56,6 +66,11 @@ public class LoadStorageAndIntegrateWithDB {
             String key = dbFile.getPath() + "|" + dbFile.getFilename();
             if (allFilesInFolderMap.containsKey(key)) {
                 filesPresentInDBAndFolder.add(key);
+                if (dbFile.isInTrash()) {
+                    dbFile.setInTrash(false);
+                    dbFile.setInTrashStartDate(null);
+                    fileDBStorageService.update(dbFile);
+                }
             } else {
                 toDelete.add(dbFile);
             }

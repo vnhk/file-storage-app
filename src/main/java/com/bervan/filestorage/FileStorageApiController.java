@@ -281,9 +281,9 @@ public class FileStorageApiController {
     }
 
     @PostMapping("/sync")
-    public ResponseEntity<Void> sync() {
+    public ResponseEntity<Void> sync(@RequestParam(defaultValue = "/") String path) {
         try {
-            loadStorageAndIntegrateWithDB.synchronizeStorageWithDB();
+            loadStorageAndIntegrateWithDB.synchronizeStorageWithDB(path);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             log.error("Failed to synchronize storage with DB", e);

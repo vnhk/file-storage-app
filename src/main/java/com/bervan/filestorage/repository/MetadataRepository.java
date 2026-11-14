@@ -13,6 +13,8 @@ public interface MetadataRepository extends BaseRepository<Metadata, UUID> {
 
     Set<Metadata> findByPath(String path);
 
+    Set<Metadata> findByPathStartingWith(String path);
+
     Set<Metadata> findByPathAndInTrashFalse(String path);
 
     List<Metadata> findByPathAndFilenameAndInTrashTrue(String path, String filename);
