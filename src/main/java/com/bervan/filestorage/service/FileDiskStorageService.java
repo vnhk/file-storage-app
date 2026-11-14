@@ -241,6 +241,10 @@ public class FileDiskStorageService {
                     metadata = new Metadata(absolutePathThatHaveToBeSavedInMetadata, file.getName(), FilenameUtils.getExtension(file.getName()), creationDateTime, false);
                     fileInfos.add(metadata);
                 }
+                metadata.setModificationDate(LocalDateTime.ofInstant(attr.lastModifiedTime().toInstant(), ZoneId.systemDefault()));
+                if (!metadata.isDirectory()) {
+                    metadata.setFileSize(attr.size());
+                }
             }
         }
     }

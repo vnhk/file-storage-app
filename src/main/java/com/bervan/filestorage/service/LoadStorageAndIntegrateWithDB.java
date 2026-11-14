@@ -62,19 +62,34 @@ public class LoadStorageAndIntegrateWithDB {
         Set<String> filesPresentInDBAndFolder = new HashSet<>();
 
         List<Metadata> toDelete = new ArrayList<>();
+        List<Metadata> toUpdate = new ArrayList<>();
         for (Metadata dbFile : dbFiles) {
             String key = dbFile.getPath() + "|" + dbFile.getFilename();
             if (allFilesInFolderMap.containsKey(key)) {
                 filesPresentInDBAndFolder.add(key);
-                if (dbFile.isInTrash()) {
+                Metadata diskFile = allFilesInFolderMap.get(key);
+                boolean changed = dbFile.isInTrash()
+                        || dbFile.isDirectory() != diskFile.isDirectory()
+                        || !Objects.equals(dbFile.getExtension(), diskFile.getExtension())
+                        || !Objects.equals(dbFile.getCreateDate(), diskFile.getCreateDate())
+                        || !Objects.equals(dbFile.getModificationDate(), diskFile.getModificationDate())
+                        || (!diskFile.isDirectory() && !Objects.equals(dbFile.getFileSize(), diskFile.getFileSize()));
+                if (changed) {
                     dbFile.setInTrash(false);
                     dbFile.setInTrashStartDate(null);
-                    fileDBStorageService.update(dbFile);
+                    dbFile.setDirectory(diskFile.isDirectory());
+                    dbFile.setExtension(diskFile.getExtension());
+                    dbFile.setCreateDate(diskFile.getCreateDate());
+                    dbFile.setModificationDate(diskFile.getModificationDate());
+                    if (!diskFile.isDirectory()) dbFile.setFileSize(diskFile.getFileSize());
+                    toUpdate.add(dbFile);
                 }
             } else {
                 toDelete.add(dbFile);
             }
         }
+
+        batchUpdate(toUpdate, 100);
 
         log.info("Delete all files in folder: " + toDelete.size());
         batchDelete(toDelete, 100);
@@ -88,6 +103,25 @@ public class LoadStorageAndIntegrateWithDB {
         batchInsert(toInsert, 100);
     }
 
+    private String describeBatch(List<Metadata> batch) {
+        if (batch.size() <= 50) {
+            return batch.stream().map(file -> file.getPath() + file.getFilename()).sorted().toList().toString();
+        }
+        return batch.size() + " entries in parent directories: "
+                + batch.stream().map(Metadata::getPath).distinct().sorted().toList();
+    }
+
+    private void batchUpdate(List<Metadata> list, int batchSize) {
+        for (int i = 0; i < list.size(); i += batchSize) {
+            List<Metadata> batch = list.subList(i, Math.min(i + batchSize, list.size()));
+            try {
+                fileDBStorageService.updateBatch(batch);
+            } catch (Exception e) {
+                log.error("Failed to update synchronized metadata: " + describeBatch(batch), e);
+            }
+        }
+    }
+
     private void batchDelete(List<Metadata> list, int batchSize) {
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
@@ -96,7 +130,7 @@ public class LoadStorageAndIntegrateWithDB {
             try {
                 fileDBStorageService.deleteBatchPermanently(batch);
             } catch (Exception e) {
-                log.error("Error while delete files in folder: " + batch, e);
+                log.error("Failed to delete synchronized metadata: " + describeBatch(batch), e);
             }
         }
     }
@@ -109,7 +143,7 @@ public class LoadStorageAndIntegrateWithDB {
             try {
                 fileDBStorageService.insertBatch(batch);
             } catch (Exception e) {
-                log.error("Error while insert files in folder: " + batch, e);
+                log.error("Failed to insert synchronized metadata: " + describeBatch(batch), e);
             }
         }
     }

@@ -174,7 +174,15 @@ public class FileDBStorageService {
     }
 
     @Transactional
+    public void updateBatch(List<Metadata> batch) {
+        batch.forEach(this::update);
+    }
+
+    @Transactional
     public void insertBatch(List<Metadata> batch) {
-        batch.forEach(this::store); // each batch in one transaction
+        for (Metadata metadata : batch) {
+            metadata.setUserName("tmpUser");
+            fileEntityRepository.save(metadata);
+        }
     }
 }

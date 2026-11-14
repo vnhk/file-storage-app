@@ -59,10 +59,29 @@ class DirectorySynchronizationTest {
         assertFalse(trashed.isInTrash());
         assertNull(trashed.getInTrashStartDate());
         verify(db).loadAllByPathPrefix("/Photos/");
-        verify(db).update(trashed);
+        verify(db).updateBatch(List.of(trashed));
+        assertEquals(4L, trashed.getFileSize());
+        assertNotNull(trashed.getModificationDate());
         verify(db, never()).load();
         verify(db, never()).insertBatch(anyList());
         verify(db, never()).deleteBatchPermanently(anyList());
+    }
+
+    @Test
+    void refreshesExistingFileAttributesWithoutChangingItsDescription() throws Exception {
+        Files.createDirectories(root.resolve("Photos"));
+        Files.writeString(root.resolve("Photos/picture.txt"), "updated");
+        Metadata existing = new Metadata("/Photos/", "picture.txt", "txt", LocalDateTime.MIN, false);
+        existing.setFileSize(1L);
+        existing.setDescription("Keep this description");
+        FileDBStorageService db = mock(FileDBStorageService.class);
+        when(db.loadAllByPathPrefix("/Photos/")).thenReturn(Set.of(existing));
+        new LoadStorageAndIntegrateWithDB(db, disk(), mock(UserRepository.class))
+                .synchronizeStorageWithDB("/Photos/");
+        assertEquals(7L, existing.getFileSize());
+        assertEquals("Keep this description", existing.getDescription());
+        assertNotNull(existing.getModificationDate());
+        verify(db).updateBatch(List.of(existing));
     }
 
     @Test
