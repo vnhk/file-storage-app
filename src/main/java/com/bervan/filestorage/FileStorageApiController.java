@@ -3,6 +3,7 @@ package com.bervan.filestorage;
 import com.bervan.filestorage.dto.MoveFilesRequest;
 import com.bervan.filestorage.dto.TrashConflictResponse;
 import com.bervan.filestorage.model.Metadata;
+import com.bervan.filestorage.policy.FileStoragePolicies;
 import com.bervan.filestorage.model.TrashConflictException;
 import com.bervan.filestorage.model.TrashZipConflictException;
 import com.bervan.filestorage.service.FileEncryptionService;
@@ -46,6 +47,7 @@ public class FileStorageApiController {
 
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileServiceManager fileServiceManager;
+    private final FileStoragePolicies policies;
     private final FileEncryptionService fileEncryptionService;
     private final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
     private final FileStorageApiHelper fileStorageApiHelper;
@@ -53,11 +55,12 @@ public class FileStorageApiController {
     public FileStorageApiController(FileServiceManager fileServiceManager,
                                     FileEncryptionService fileEncryptionService,
                                     LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
-                                    FileStorageApiHelper fileStorageApiHelper) {
+                                    FileStorageApiHelper fileStorageApiHelper, FileStoragePolicies policies) {
         this.fileServiceManager = fileServiceManager;
         this.fileEncryptionService = fileEncryptionService;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
         this.fileStorageApiHelper = fileStorageApiHelper;
+        this.policies = policies;
     }
 
     @GetMapping
@@ -69,6 +72,11 @@ public class FileStorageApiController {
                 .map(MetadataDto::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/untracked-extensions")
+    public List<String> untrackedExtensions(@RequestParam(defaultValue = "/") String path) {
+        return policies.untrackedExtensions(path);
     }
 
     @PostMapping("/upload")

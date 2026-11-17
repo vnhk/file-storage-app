@@ -71,8 +71,17 @@ global-tmp-dir.file-storage-relative-path=tmp
 ```
 
 ## Important Notes
-1. Dual storage: every file stored on disk AND metadata in DB
+1. Dual storage: files live on disk; injected `FileStoragePolicy` implementations may exclude file metadata while retaining directories.
 2. Path-based routing determines storage location via configurable patterns
 3. Async operations (sync, delete, copy, move) run in background with notifications
 4. Spring Security `@PostFilter` for row-level access control
 5. Soft deletes via `deleted` flag
+
+### Module-specific tracking policies
+- `FileStoragePolicy` is a module-neutral extension point with operation-local tracking filters and hooks before explicit permanent file/directory deletion. With no policies, all metadata is tracked.
+- `FileStoragePolicies` combines injected policies. Directories always retain metadata; policy implementations must not depend on `FileServiceManager` to avoid circular wiring.
+- Uploads and ZIP imports apply tracking filters after writing files. ZIP entry names are supplied to the filter before extraction, so playlist order does not affect tracking.
+- Synchronization removes existing excluded records using `FileDBStorageService.removeFileMetadataOnly`, never physical deletion or deletion hooks. This cleanup is scoped to the selected directory and descendants.
+- `FileDirectoryContents` supplements active metadata with intentionally untracked disk files for ZIP exports and folder size calculations. Trashed records and unrelated unsynchronized files remain excluded.
+- `GET /api/files/untracked-extensions?path=...` exposes policy extension hints for the file browser notice without exposing physical paths.
+- `FileZipImportService` owns ZIP extraction; the public facade methods remain on `FileServiceManager`.

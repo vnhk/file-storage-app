@@ -1,6 +1,6 @@
 package com.bervan.filestorage.service;
 
-import com.bervan.common.user.UserRepository;
+import com.bervan.filestorage.policy.FileStoragePolicies;
 import com.bervan.filestorage.model.Metadata;
 import com.bervan.logging.JsonLogger;
 import org.springframework.stereotype.Service;
@@ -12,22 +12,13 @@ public class LoadStorageAndIntegrateWithDB {
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
     private final FileDBStorageService fileDBStorageService;
     private final FileDiskStorageService fileDiskStorageService;
-    private final UserRepository userRepository;
+    private final FileStoragePolicies policies;
 
-    public LoadStorageAndIntegrateWithDB(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService, UserRepository userRepository) {
+    public LoadStorageAndIntegrateWithDB(FileDBStorageService fileDBStorageService, FileDiskStorageService fileDiskStorageService, FileStoragePolicies policies) {
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
-        this.userRepository = userRepository;
+        this.policies = policies;
     }
-
-//    @Scheduled(cron = "0 0 0/1 * * *")
-//    public void synchronizeStorageCron() {
-//        List<User> all = userRepository.findAll();
-//        SecurityContext securityContext = SecurityContextHolder.getContext();
-//        securityContext.setAuthentication();
-//        synchronizeStorageWithDB();
-//
-//    }
 
     public void synchronizeStorageWithDB(String directory) {
         if (directory == null || !directory.startsWith("/") || directory.contains("\\")) {
@@ -58,13 +49,20 @@ public class LoadStorageAndIntegrateWithDB {
             allFilesInFolderMap.put(key, metadata);
         }
 
+        var shouldTrack = policies.trackingFilter(allFilesInFolder);
         Set<Metadata> dbFiles = fileDBStorageService.loadAllByPathPrefix(directory);
         Set<String> filesPresentInDBAndFolder = new HashSet<>();
 
-        List<Metadata> toDelete = new ArrayList<>();
+        List<Metadata> metadataExcludedByPolicy = new ArrayList<>();
+        List<Metadata> metadataMissingOnDisk = new ArrayList<>();
         List<Metadata> toUpdate = new ArrayList<>();
         for (Metadata dbFile : dbFiles) {
             String key = dbFile.getPath() + "|" + dbFile.getFilename();
+            if (!shouldTrack.test(dbFile)) {
+                metadataExcludedByPolicy.add(dbFile);
+                allFilesInFolderMap.remove(key);
+                continue;
+            }
             if (allFilesInFolderMap.containsKey(key)) {
                 filesPresentInDBAndFolder.add(key);
                 Metadata diskFile = allFilesInFolderMap.get(key);
@@ -85,22 +83,42 @@ public class LoadStorageAndIntegrateWithDB {
                     toUpdate.add(dbFile);
                 }
             } else {
-                toDelete.add(dbFile);
+                metadataMissingOnDisk.add(dbFile);
             }
         }
 
+        removeMetadataExcludedByPolicy(metadataExcludedByPolicy, 100);
         batchUpdate(toUpdate, 100);
 
-        log.info("Delete all files in folder: " + toDelete.size());
-        batchDelete(toDelete, 100);
+        log.info("Remove metadata for missing disk entries: " + metadataMissingOnDisk.size());
+        batchDelete(metadataMissingOnDisk, 100);
 
         allFilesInFolderMap.entrySet()
                 .removeIf(entry -> filesPresentInDBAndFolder.contains(entry.getKey()));
 
-        List<Metadata> toInsert = allFilesInFolderMap.values().stream().toList();
+        List<Metadata> toInsert = allFilesInFolderMap.values().stream().filter(shouldTrack).toList();
 
         log.info("Insert all files in folder: " + toInsert.size());
         batchInsert(toInsert, 100);
+    }
+
+    /**
+     * Removes existing records that a storage policy no longer wants to track.
+     * Filtering new inserts alone would leave records created before the policy was introduced.
+     * Unlike cleanup of missing disk entries, exclusion does not mean the file is missing:
+     * it can still be required for playback, exports, and folder size calculations.
+     * Therefore this path removes file metadata only, without moving items to trash,
+     * traversing directory records, calling deletion hooks, or deleting physical files.
+     */
+    private void removeMetadataExcludedByPolicy(List<Metadata> excludedMetadata, int batchSize) {
+        for (int i = 0; i < excludedMetadata.size(); i += batchSize) {
+            List<Metadata> batch = excludedMetadata.subList(i, Math.min(i + batchSize, excludedMetadata.size()));
+            try {
+                fileDBStorageService.removeFileMetadataOnly(batch);
+            } catch (Exception e) {
+                log.error("Failed to remove metadata excluded by storage policy: " + describeBatch(batch), e);
+            }
+        }
     }
 
     private String describeBatch(List<Metadata> batch) {

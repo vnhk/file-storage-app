@@ -173,6 +173,20 @@ public class FileDBStorageService {
         batch.forEach(this::deletePermanently); // each batch in one transaction
     }
 
+    /**
+     * Removes file records when a policy excludes them from metadata tracking.
+     * This is not a user-requested deletion: physical files must remain available.
+     * Bypasses trash and recursive metadata deletion; directory records are rejected
+     * because they are still needed for navigation and explicit folder deletion.
+     */
+    @Transactional
+    public void removeFileMetadataOnly(List<Metadata> files) {
+        if (files.stream().anyMatch(Metadata::isDirectory)) {
+            throw new IllegalArgumentException("Directory metadata cannot be untracked");
+        }
+        files.forEach(fileEntityRepository::delete);
+    }
+
     @Transactional
     public void updateBatch(List<Metadata> batch) {
         batch.forEach(this::update);

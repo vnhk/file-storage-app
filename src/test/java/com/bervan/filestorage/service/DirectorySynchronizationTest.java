@@ -1,6 +1,6 @@
 package com.bervan.filestorage.service;
 
-import com.bervan.common.user.UserRepository;
+import com.bervan.filestorage.policy.FileStoragePolicies;
 import com.bervan.filestorage.model.Metadata;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,7 +30,7 @@ class DirectorySynchronizationTest {
     @Test
     void summarizesEachDirectorySeparatelyAtTheFiftyEntryBoundary() {
         LoadStorageAndIntegrateWithDB sync = new LoadStorageAndIntegrateWithDB(
-                mock(FileDBStorageService.class), disk(), mock(UserRepository.class));
+                mock(FileDBStorageService.class), disk(), new FileStoragePolicies(List.of()));
         List<Metadata> entries = new java.util.ArrayList<>();
         for (int i = 0; i < 51; i++) {
             entries.add(new Metadata("/Large/", "file-" + i, null, LocalDateTime.MIN, false));
@@ -72,7 +72,7 @@ class DirectorySynchronizationTest {
         FileDBStorageService db = mock(FileDBStorageService.class);
         when(db.loadAllByPathPrefix("/Photos/")).thenReturn(Set.of(trashed));
         LoadStorageAndIntegrateWithDB sync =
-                new LoadStorageAndIntegrateWithDB(db, disk(), mock(UserRepository.class));
+                new LoadStorageAndIntegrateWithDB(db, disk(), new FileStoragePolicies(List.of()));
 
         sync.synchronizeStorageWithDB("/Photos");
 
@@ -96,7 +96,7 @@ class DirectorySynchronizationTest {
         existing.setDescription("Keep this description");
         FileDBStorageService db = mock(FileDBStorageService.class);
         when(db.loadAllByPathPrefix("/Photos/")).thenReturn(Set.of(existing));
-        new LoadStorageAndIntegrateWithDB(db, disk(), mock(UserRepository.class))
+        new LoadStorageAndIntegrateWithDB(db, disk(), new FileStoragePolicies(List.of()))
                 .synchronizeStorageWithDB("/Photos/");
         assertEquals(7L, existing.getFileSize());
         assertEquals("Keep this description", existing.getDescription());
@@ -108,7 +108,7 @@ class DirectorySynchronizationTest {
     void rejectsTraversalBeforeReadingOrChangingMetadata() {
         FileDBStorageService db = mock(FileDBStorageService.class);
         LoadStorageAndIntegrateWithDB sync =
-                new LoadStorageAndIntegrateWithDB(db, disk(), mock(UserRepository.class));
+                new LoadStorageAndIntegrateWithDB(db, disk(), new FileStoragePolicies(List.of()));
         assertThrows(IllegalArgumentException.class, () -> sync.synchronizeStorageWithDB("/../outside"));
         verifyNoInteractions(db);
     }
@@ -119,7 +119,7 @@ class DirectorySynchronizationTest {
         FileDiskStorageService disk = disk();
         ReflectionTestUtils.setField(disk, "folderMapping", Map.of("main", root.resolve("missing").toString()));
         LoadStorageAndIntegrateWithDB sync =
-                new LoadStorageAndIntegrateWithDB(db, disk, mock(UserRepository.class));
+                new LoadStorageAndIntegrateWithDB(db, disk, new FileStoragePolicies(List.of()));
         assertThrows(RuntimeException.class, () -> sync.synchronizeStorageWithDB("/"));
         verifyNoInteractions(db);
     }

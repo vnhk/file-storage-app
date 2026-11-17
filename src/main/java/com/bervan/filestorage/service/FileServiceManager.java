@@ -6,11 +6,10 @@ import com.bervan.common.search.SearchService;
 import com.bervan.common.search.model.SearchOperation;
 import com.bervan.common.search.model.SearchResponse;
 import com.bervan.common.service.BaseService;
-import com.bervan.filestorage.model.BervanMockMultiPartFile;
 import com.bervan.filestorage.model.FileDownloadException;
 import com.bervan.filestorage.model.Metadata;
+import com.bervan.filestorage.policy.FileStoragePolicies;
 import com.bervan.filestorage.model.TrashConflictException;
-import com.bervan.filestorage.model.TrashZipConflictException;
 import com.bervan.filestorage.model.UploadResponse;
 import com.bervan.filestorage.repository.MetadataRepository;
 import com.bervan.ieentities.ExcelIEEntity;
@@ -26,14 +25,12 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 @Service
@@ -42,16 +39,24 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     protected final FileDiskStorageService fileDiskStorageService;
     protected final LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB;
     protected final SearchService searchService;
+    private final FileStoragePolicies policies;
+    private final FileZipImportService zipImportService;
+    private final FileDirectoryContents directoryContents;
     private final JsonLogger log = JsonLogger.getLogger(getClass(), "file-storage");
 
     public FileServiceManager(FileDBStorageService fileDBStorageService, SearchService searchService,
                               FileDiskStorageService fileDiskStorageService, MetadataRepository repository,
-                              LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB) {
+                              LoadStorageAndIntegrateWithDB loadStorageAndIntegrateWithDB,
+                              FileStoragePolicies policies, FileZipImportService zipImportService,
+                              FileDirectoryContents directoryContents) {
         super(repository, searchService);
         this.fileDBStorageService = fileDBStorageService;
         this.fileDiskStorageService = fileDiskStorageService;
         this.searchService = searchService;
         this.loadStorageAndIntegrateWithDB = loadStorageAndIntegrateWithDB;
+        this.policies = policies;
+        this.zipImportService = zipImportService;
+        this.directoryContents = directoryContents;
     }
 
 //    to be done once owners approach chosen
@@ -74,112 +79,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
     }
 
     public UploadResponse saveAndExtractZip(MultipartFile file, String description, final String path, boolean overwriteTrash) throws IOException {
-        if (!file.getOriginalFilename().endsWith(".zip")) {
-            throw new RuntimeException("File is not a zip!");
-        }
-
-        UploadResponse uploadResponse = new UploadResponse();
-        Path zipFile = null;
-        List<Metadata> savedFilesMetadata = new ArrayList<>();
-
-        try {
-            String[] pathParts = file.getOriginalFilename().split(Pattern.quote(File.separator));
-            String fileNameTmp = fileDiskStorageService.storeTmp(file, pathParts[pathParts.length - 1]);
-
-            zipFile = fileDiskStorageService.getTmpFile(fileNameTmp);
-
-            // Pre-scan zip entries to detect conflicts with trashed items
-            List<TrashZipConflictException.TrashConflictItem> conflicts = new ArrayList<>();
-            try (ZipInputStream scanZis = new ZipInputStream(Files.newInputStream(zipFile))) {
-                ZipEntry entry;
-                while ((entry = scanZis.getNextEntry()) != null) {
-                    if (entry.getName().startsWith("__") || entry.getName().startsWith(".") || entry.isDirectory()) {
-                        continue;
-                    }
-                    String[] entryParts = entry.getName().split(Pattern.quote(File.separator));
-                    String baseDestinationPath = path;
-                    for (int i = 0; i < entryParts.length - 1; i++) {
-                        baseDestinationPath = baseDestinationPath + File.separator + entryParts[i];
-                    }
-                    String cleanDestPath = baseDestinationPath.endsWith(File.separator) ? baseDestinationPath : baseDestinationPath + File.separator;
-                    String entryFilename = entryParts[entryParts.length - 1];
-
-                    List<Metadata> trashed = fileDBStorageService.loadByPathAndFilenameInTrash(cleanDestPath, entryFilename);
-                    for (Metadata t : trashed) {
-                        conflicts.add(new TrashZipConflictException.TrashConflictItem(t.getId(), t.getFilename(), t.getPath()));
-                    }
-                    scanZis.closeEntry();
-                }
-            }
-
-            if (!conflicts.isEmpty()) {
-                if (!overwriteTrash) {
-                    throw new TrashZipConflictException(conflicts);
-                } else {
-                    for (TrashZipConflictException.TrashConflictItem conflict : conflicts) {
-                        Metadata m = getMetadata(conflict.getMetadataId());
-                        if (m != null) {
-                            deletePermanently(m);
-                        }
-                    }
-                }
-            }
-
-            List<UploadResponse> uploadResponses = new ArrayList<>();
-
-            try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
-                ZipEntry zipEntry;
-
-                while ((zipEntry = zis.getNextEntry()) != null) {
-                    if (zipEntry.getName().startsWith("__") || zipEntry.getName().startsWith(".") || zipEntry.isDirectory()) {
-                        continue;
-                    }
-
-                    String extractedFilename = zipEntry.getName();
-                    log.info("Started processing file: " + extractedFilename);
-
-                    String[] extractedPathParts = extractedFilename.split(Pattern.quote(File.separator));
-                    String fileName = extractedPathParts[extractedPathParts.length - 1];
-                    Path tempFilePath = Files.createTempFile("extracted_", "_" + fileName);
-
-                    log.info("File is BEING SAVED as temp: " + extractedFilename + " in " + tempFilePath);
-                    Files.copy(zis, tempFilePath, StandardCopyOption.REPLACE_EXISTING);
-                    log.info("File is SAVED as temp: " + extractedFilename + " in " + tempFilePath);
-
-                    log.info("File is being processed " + extractedFilename + " in destination path: " + path);
-                    uploadResponses.add(processFile(tempFilePath, extractedFilename, description, path, overwriteTrash));
-                    log.info("File is processed " + extractedFilename + " in destination path: " + path);
-
-                    zis.closeEntry();
-                }
-            }
-
-            uploadResponses.forEach(response -> savedFilesMetadata.addAll(response.getMetadata()));
-        } catch (TrashZipConflictException e) {
-            throw e;
-        } catch (Exception e) {
-            for (Metadata filesToBeReverted : savedFilesMetadata) {
-                Files.deleteIfExists(fileDiskStorageService.getFile(filesToBeReverted.getPath() + File.separator + filesToBeReverted.getFilename()));
-            }
-            throw new RuntimeException("Error processing ZIP file", e);
-        } finally {
-            if (zipFile != null) {
-                Files.deleteIfExists(zipFile);
-            }
-        }
-
-        uploadResponse.setCreateDate(LocalDateTime.now());
-        uploadResponse.setMetadata(savedFilesMetadata);
-        return uploadResponse;
-    }
-
-    private UploadResponse processFile(Path tempFilePath, String extractedFilename, String description, String path, boolean overwriteTrash) throws IOException {
-        try {
-            BervanMockMultiPartFile multipartFile = new BervanMockMultiPartFile(extractedFilename, extractedFilename, Files.probeContentType(tempFilePath), Files.newInputStream(tempFilePath));
-            return save(multipartFile, description, path, overwriteTrash);
-        } finally {
-            Files.delete(tempFilePath);
-        }
+        return zipImportService.extract(file, description, path, overwriteTrash, this);
     }
 
     @Transactional
@@ -189,6 +89,12 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
 
     @Transactional
     public UploadResponse save(MultipartFile file, String description, String path, boolean overwriteTrash) {
+        return saveWithTrackingFilter(file, description, path, overwriteTrash, policies.trackingFilter());
+    }
+
+    @Transactional
+    UploadResponse saveWithTrackingFilter(MultipartFile file, String description, String path,
+                                                  boolean overwriteTrash, Predicate<Metadata> shouldTrack) {
         log.info("FILE PATH SEPARATOR: " + File.separator);
         log.info("Saving file in DB and on a disk: " + path);
         UploadResponse uploadResponse = new UploadResponse();
@@ -231,6 +137,12 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         filename = fileDiskStorageService.store(file, path, filename);
         LocalDateTime createDate = LocalDateTime.now();
         uploadResponse.setCreateDate(createDate);
+
+        Metadata candidate = new Metadata(cleanDestPath, filename, FilenameUtils.getExtension(filename), createDate, false);
+        if (!shouldTrack.test(candidate)) {
+            uploadResponse.setMetadata(createdMetadata);
+            return uploadResponse;
+        }
 
         log.info("Saving metadata in database for file: " + filename + " and path: " + path);
         Metadata stored = fileDBStorageService.store(createDate, path, filename, description, FilenameUtils.getExtension(filename), false);
@@ -324,6 +236,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
                     "' because inTrash is not true (value: " + item.isInTrash() + ")!");
         }
 
+        policies.beforeDelete(item);
         log.info("Permanently deleting item: {}{}", item.getPath(), item.getFilename());
         if (item.isDirectory()) {
             String p = item.getPath() != null ? item.getPath() : "/";
@@ -549,8 +462,8 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         String childPath = p + sep + folder.getFilename();
 
         // Load immediate children and recurse
-        Set<Metadata> children = loadByPath(childPath + "/");
-        if (children == null || children.isEmpty()) {
+        List<Metadata> children = directoryContents.load(childPath + "/");
+        if (children.isEmpty()) {
             return;
         }
 
@@ -604,8 +517,13 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
         }
         String childPath = p + sep + folder.getFilename() + "/";
 
-        Set<Metadata> children = loadByPath(childPath);
-        if (children == null || children.isEmpty()) {
+        List<Metadata> children;
+        try {
+            children = directoryContents.load(childPath);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException("Cannot calculate directory size: " + childPath, e);
+        }
+        if (children.isEmpty()) {
             return 0L;
         }
 
@@ -629,7 +547,7 @@ public class FileServiceManager extends BaseService<UUID, Metadata> {
                         if (java.nio.file.Files.exists(file) && java.nio.file.Files.isRegularFile(file)) {
                             size = java.nio.file.Files.size(file);
                             child.setFileSize(size);
-                            updateMetadata(child);
+                            if (child.getId() != null) updateMetadata(child);
                         }
                     } catch (Exception e) {
                         log.warn("Could not determine file size from disk for: " + child.getFilename(), e);
