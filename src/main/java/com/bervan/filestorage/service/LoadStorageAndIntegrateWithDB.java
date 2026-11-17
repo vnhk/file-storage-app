@@ -153,7 +153,6 @@ public class LoadStorageAndIntegrateWithDB {
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
-            log.info("Batch delete files in folder: " + batch.size());
             try {
                 fileDBStorageService.deleteBatchPermanently(batch);
             } catch (Exception e) {
@@ -166,7 +165,6 @@ public class LoadStorageAndIntegrateWithDB {
         for (int i = 0; i < list.size(); i += batchSize) {
             int end = Math.min(i + batchSize, list.size());
             List<Metadata> batch = list.subList(i, end);
-            log.info("Batch insert files in folder: " + batch.size());
             try {
                 fileDBStorageService.insertBatch(batch);
             } catch (Exception e) {
